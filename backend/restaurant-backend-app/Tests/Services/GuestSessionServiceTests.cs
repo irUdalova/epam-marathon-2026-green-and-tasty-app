@@ -850,6 +850,7 @@ public class GuestSessionServiceTests
         GroupReservation groupReservation, Reservation reservation, string ownerId)
     {
         SetupOwnedGroup(groupReservation, reservation, ownerId);
+        groupReservation.Status = GroupReservationStatus.Open;
         var andrii = BuildSession("session1", "Andrii", groupReservation.GroupReservationId, isSubmitted: true, ("dish1", 2));
         var olena = BuildSession("session2", "Olena", groupReservation.GroupReservationId, isSubmitted: false, ("dish2", 1));
 
@@ -866,6 +867,92 @@ public class GuestSessionServiceTests
         Assert.Equal("Olena", participant.Name);
         Assert.Equal(220, result.Total);
     }
+
+    [Theory, AutoData]
+    public async Task DeleteGuestSessionAsync_SessionNotFound_ThrowsGuestSessionNotFound(
+        GroupReservation groupReservation, Reservation reservation, string ownerId, string guestSessionId)
+    {
+        SetupOwnedGroup(groupReservation, reservation, ownerId);
+        groupReservation.Status = GroupReservationStatus.Open;
+        _mockGuestSessionRepository.Setup(r => r.GetByGuestSessionId(guestSessionId)).ReturnsAsync((GuestSession?)null);
+
+        await Assert.ThrowsAsync<GuestSessionNotFoundException>(
+            () => _guestSessionService.DeleteGuestSessionAsync(ownerId, groupReservation.GroupReservationId, guestSessionId));
+        VerifyNothingDeleted();
+    }
+
+    [Theory, AutoData]
+    public async Task DeleteGuestSessionAsync_SessionFromAnotherGroup_ThrowsValidation(
+        GroupReservation groupReservation, Reservation reservation, string ownerId, string otherGroupId)
+    {
+        SetupOwnedGroup(groupReservation, reservation, ownerId);
+        groupReservation.Status = GroupReservationStatus.Open;
+        var foreign = BuildSession("session1", "Andrii", otherGroupId, isSubmitted: true, ("dish1", 2));
+        _mockGuestSessionRepository.Setup(r => r.GetByGuestSessionId(foreign.Id)).ReturnsAsync(foreign);
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _guestSessionService.DeleteGuestSessionAsync(ownerId, groupReservation.GroupReservationId, foreign.Id));
+        VerifyNothingDeleted();
+    }
+
+    [Theory, AutoData]
+    public async Task DeleteGuestSessionAsync_CallerIsNotOwner_ThrowsActionForbidden(
+        GroupReservation groupReservation, Reservation reservation, string ownerId, string otherUserId)
+    {
+        SetupOwnedGroup(groupReservation, reservation, ownerId);
+        groupReservation.Status = GroupReservationStatus.Open;
+
+        await Assert.ThrowsAsync<ActionForbiddenException>(
+            () => _guestSessionService.DeleteGuestSessionAsync(otherUserId, groupReservation.GroupReservationId, "session1"));
+        _mockGuestSessionRepository.Verify(r => r.GetByGuestSessionId(It.IsAny<string>()), Times.Never);
+        VerifyNothingDeleted();
+    }
+
+    [Theory, AutoData]
+    public async Task DeleteGuestSessionAsync_GroupNotFound_ThrowsGroupReservationNotFound(
+        string groupReservationId, string userId, string guestSessionId)
+    {
+        _mockGroupReservationRepository
+            .Setup(r => r.GetGroupReservationByIdAsync(groupReservationId))
+            .ReturnsAsync((GroupReservation?)null);
+
+        await Assert.ThrowsAsync<GroupReservationNotFoundException>(
+            () => _guestSessionService.DeleteGuestSessionAsync(userId, groupReservationId, guestSessionId));
+        VerifyNothingDeleted();
+    }
+
+    [Theory, AutoData]
+    public async Task DeleteGuestSessionAsync_OwnerSession_ThrowsValidation(
+        GroupReservation groupReservation, Reservation reservation, string ownerId)
+    {
+        SetupOwnedGroup(groupReservation, reservation, ownerId);
+        groupReservation.Status = GroupReservationStatus.Open;
+        var owner = BuildOwnerSession(groupReservation.GroupReservationId, ownerId);
+        _mockGuestSessionRepository.Setup(r => r.GetByGuestSessionId(owner.Id)).ReturnsAsync(owner);
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _guestSessionService.DeleteGuestSessionAsync(ownerId, groupReservation.GroupReservationId, owner.Id));
+        VerifyNothingDeleted();
+    }
+
+    [Theory]
+    [InlineAutoData(GroupReservationStatus.Submitted, typeof(GroupReservationSubmittedException))]
+    [InlineAutoData(GroupReservationStatus.Closed, typeof(GroupReservationExpiredException))]
+    public async Task DeleteGuestSessionAsync_GroupNotOpen_Throws(
+        GroupReservationStatus status, Type exceptionType, GroupReservation groupReservation, Reservation reservation, string ownerId)
+    {
+        SetupOwnedGroup(groupReservation, reservation, ownerId);
+        groupReservation.Status = status;
+        var guest = BuildSession("session1", "Andrii", groupReservation.GroupReservationId, isSubmitted: true, ("dish1", 2));
+        _mockGuestSessionRepository.Setup(r => r.GetByGuestSessionId(guest.Id)).ReturnsAsync(guest);
+
+        await Assert.ThrowsAsync(exceptionType,
+            () => _guestSessionService.DeleteGuestSessionAsync(ownerId, groupReservation.GroupReservationId, guest.Id));
+        VerifyNothingDeleted();
+    }
+
+    private void VerifyNothingDeleted()
+        => _mockGuestSessionRepository.Verify(r => r.DeleteAsync(It.IsAny<GuestSession>()), Times.Never);
 
     [Theory, AutoData]
     public async Task GetGroupReservationStatusAsync_OwnerSessionExists_DoesNotCountOwnerTwice(

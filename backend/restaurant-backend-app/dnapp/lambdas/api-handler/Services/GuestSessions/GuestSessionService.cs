@@ -176,7 +176,10 @@ public class GuestSessionService(
     
     public async Task<GetAllSessionsResponse> DeleteGuestSessionAsync(string userId, string groupReservationId, string guestSessionId)
     {
-        await ValidateReservationOwnerAsync(groupReservationId, userId);
+        var group = await ValidateReservationOwnerAsync(groupReservationId, userId);
+
+        // After the group is submitted its dishes are already in the order, so the participants are final.
+        ValidateGroupReservation(group);
 
         var session = await guestSessionRepository.GetByGuestSessionId(guestSessionId)
             ?? throw new GuestSessionNotFoundException($"Guest session with id {guestSessionId} not found.");
@@ -184,6 +187,11 @@ public class GuestSessionService(
         if (session.GroupReservationId != groupReservationId)
         {
             throw new ValidationException("Guest session does not belong to this group reservation.");
+        }
+
+        if (session.IsOwnerSession)
+        {
+            throw new ValidationException("The owner's own session cannot be deleted.");
         }
 
         await guestSessionRepository.DeleteAsync(session);
@@ -277,7 +285,7 @@ public class GuestSessionService(
     }
 
     
-    private async Task ValidateReservationOwnerAsync(string groupReservationId, string userId)
+    private async Task<GroupReservation> ValidateReservationOwnerAsync(string groupReservationId, string userId)
     {
         var group = await groupReservationRepository.GetGroupReservationByIdAsync(groupReservationId)
             ?? throw new GroupReservationNotFoundException();
@@ -286,6 +294,7 @@ public class GuestSessionService(
             ?? throw new ReservationNotFoundException("Parent reservation not found.");
 
         EnsureReservationOwner(reservation, userId);
+        return group;
     }
 
     private async Task<GetAllSessionsResponse> BuildGroupSnapshotAsync(string groupReservationId, string ownerUserId)

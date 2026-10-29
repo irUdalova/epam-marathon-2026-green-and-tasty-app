@@ -1290,6 +1290,10 @@ Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
 > **Updated (2026-10-28).** The response was documented as a message, but the endpoint returns the
 > updated group snapshot, in the same format as `GET /guest/groups/{groupReservationId}/sessions`.
 > Both endpoints now share one snapshot builder.
+>
+> **Updated (2026-10-29, group pre-order, level 3).** Two guards added: the owner's own session cannot
+> be deleted, and no session can be deleted once the group is submitted or closed (its dishes are
+> already in the order).
 
 Auth: Cognito. Only the owner of the reservation may call it.
 
@@ -1301,5 +1305,7 @@ Response: `200 OK` with the snapshot of the remaining participants:
 }
 ```
 
-Errors: `400` session does not belong to this group · `403` caller is not the owner ·
-`404` group reservation, reservation or guest session not found.
+Errors: `401` no Cognito token · `403` caller is not the owner ·
+`404` group reservation, reservation or guest session not found ·
+`400` session does not belong to this group · the session is the owner's own session ·
+group already submitted (`errorCode: GroupReservationSubmitted`) or closed (`errorCode: GroupReservationExpired`).
