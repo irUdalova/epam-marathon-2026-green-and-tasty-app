@@ -1188,22 +1188,61 @@ Response: 200 OK
 ```
 
 ### `GET` /guest/groups/{groupReservationId}/sessions
-Response: 200 OK
-```json
-[
-  {
-    "id": "string",
-    "groupReservationId": "string",
-    "guestName": "string",
-    "status": "string"
-  }
-]
-```
+> **New implementation (2026-10-28, group pre-order, level 1).** Replaces the earlier draft of this
+> endpoint, which returned a flat list of sessions and was never implemented.
+> Handler: `GetGroupSessionsHandler` → `GuestSessionService.GetGroupSessionsAsync`.
 
-### `DELETE` /guest/groups/{groupReservationId}/sessions/{guestSessionId}
-Response: 200 OK
+Returns a snapshot of the group pre-order for the reservation owner: every participant, the dishes
+they added, a total per participant and a total for the whole group.
+
+Auth: Cognito (`Authorization: Bearer <idToken>`). Only the owner of the reservation may call it.
+
+- The owner's own session (if it exists) comes first with `"type": "Owner"` and the owner's first name;
+  guests follow with `"type": "Guest"`.
+- `total` = Σ `dish.price × quantity`. A dish deleted from the menu after it was added to a cart
+  is left out of `items` and of the totals.
+- `dish` contains every `DishResponse` field (`description`, `weight`, `calories`, ... as in `GET /dishes/{id}`);
+  only some are shown below.
+
+Response: `200 OK`
 ```json
 {
-  "message": "Guest session removed from group successfully."
+  "participants": [
+    {
+      "id": "session1",
+      "type": "Guest",
+      "name": "Andrii",
+      "items": [
+        {
+          "dish": { "id": "dish1", "name": "Caesar Salad", "price": 180, "imageUrl": "string", "state": "Available" },
+          "quantity": 2
+        }
+      ],
+      "total": 360,
+      "isSubmitted": true
+    }
+  ],
+  "total": 360
 }
 ```
+
+Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
+`404` group reservation or its reservation not found.
+
+### `DELETE` /guest/groups/{groupReservationId}/sessions/{guestSessionId}
+> **Updated (2026-10-28).** The response was documented as a message, but the endpoint returns the
+> updated group snapshot, in the same format as `GET /guest/groups/{groupReservationId}/sessions`.
+> Both endpoints now share one snapshot builder.
+
+Auth: Cognito. Only the owner of the reservation may call it.
+
+Response: `200 OK` with the snapshot of the remaining participants:
+```json
+{
+  "participants": [ /* same shape as GET /guest/groups/{groupReservationId}/sessions */ ],
+  "total": 220
+}
+```
+
+Errors: `400` session does not belong to this group · `403` caller is not the owner ·
+`404` group reservation, reservation or guest session not found.

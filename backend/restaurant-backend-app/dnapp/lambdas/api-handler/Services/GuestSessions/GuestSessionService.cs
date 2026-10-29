@@ -186,33 +186,14 @@ public class GuestSessionService(
 
         await guestSessionRepository.DeleteAsync(session);
 
-        var sessions = await guestSessionRepository.GetAllByGroupReservationIdAsync(groupReservationId);
+        return await BuildGroupSnapshotAsync(groupReservationId, userId);
+    }
 
-        var dishIds = sessions
-            .SelectMany(s => s.Dishes)
-            .Select(s => s.DishId)
-            .Distinct()
-            .ToArray();
+    public async Task<GetAllSessionsResponse> GetGroupSessionsAsync(string userId, string groupReservationId)
+    {
+        await ValidateReservationOwnerAsync(groupReservationId, userId);
 
-        var allDishes = await dishRepository.GetDishesByIdsAsync(dishIds);
-        var dishesById = allDishes.ToDictionary(d => d.Id);
-
-        var participants = new List<Participant>();
-
-        foreach (var guestSession in sessions)
-        {
-            var items = guestSession.Dishes.Select(d => new OrderItemResponse
-            {
-                Dish = DishMapper.ToDishResponse(dishesById[d.DishId]),
-                Quantity = d.Quantity
-            }).ToArray();
-
-            decimal total = items.Sum(i => i.Quantity * i.Dish.Price);
-            var participant = new Participant(guestSession.Id, ParticipantType.Guest, guestSession.GuestName, items, total, guestSession.IsSubmitted);
-            participants.Add(participant);
-        }
-
-        return new GetAllSessionsResponse(participants, participants.Sum(p => p.Total));
+        return await BuildGroupSnapshotAsync(groupReservationId, userId);
     }
     public async Task SubmitCartAsync(string guestSessionId)
     {
@@ -306,6 +287,60 @@ public class GuestSessionService(
         {
             throw new ActionForbiddenException("Only the reservation owner can perform this action.");
         }
+    }
+
+    private async Task<GetAllSessionsResponse> BuildGroupSnapshotAsync(string groupReservationId, string ownerUserId)
+    {
+        var sessions = await guestSessionRepository.GetAllByGroupReservationIdAsync(groupReservationId);
+
+        var dishIds = sessions
+            .SelectMany(s => s.Dishes ?? [])
+            .Select(d => d.DishId)
+            .Distinct()
+            .ToArray();
+
+        var allDishes = await dishRepository.GetDishesByIdsAsync(dishIds);
+        var dishesById = allDishes
+            .Where(d => d is not null)
+            .ToDictionary(d => d.Id);
+
+        string? ownerName = sessions.Any(s => s.IsOwnerSession)
+            ? await GetOwnerNameAsync(ownerUserId)
+            : null;
+
+        // Owner first, then guests in the order they joined the group.
+        var participants = sessions
+            .OrderByDescending(s => s.IsOwnerSession)
+            .Select(s => ToParticipant(s, dishesById, ownerName))
+            .ToList();
+
+        return new GetAllSessionsResponse(participants, participants.Sum(p => p.Total));
+    }
+
+    private static Participant ToParticipant(GuestSession session, Dictionary<string, Dish> dishesById, string? ownerName)
+    {
+        // A dish deleted from the menu after it was added to a cart is skipped,
+        // so it is neither shown nor counted in the totals.
+        var items = (session.Dishes ?? [])
+            .Where(d => dishesById.ContainsKey(d.DishId))
+            .Select(d => new OrderItemResponse
+            {
+                Dish = DishMapper.ToDishResponse(dishesById[d.DishId]),
+                Quantity = d.Quantity
+            })
+            .ToArray();
+
+        decimal total = items.Sum(i => i.Quantity * i.Dish.Price);
+
+        return session.IsOwnerSession
+            ? new Participant(session.Id, ParticipantType.Owner, ownerName ?? session.GuestName, items, total, session.IsSubmitted)
+            : new Participant(session.Id, ParticipantType.Guest, session.GuestName, items, total, session.IsSubmitted);
+    }
+
+    private async Task<string?> GetOwnerNameAsync(string ownerUserId)
+    {
+        var user = await userRepository.GetUserByIdAsync(ownerUserId);
+        return user?.Attributes.FirstOrDefault(a => a.Name == "given_name")?.Value;
     }
 
     public async Task CreateGroupOwnerSessionAsync(string userId, string groupReservationId)
