@@ -1170,6 +1170,9 @@ Response: 200 OK
 ```
 
 ### `GET` /group-reservations/{groupReservationId}/status
+> **Updated (2026-10-29).** The owner's own session (see `GET /reservations/{reservationId}/guest-session-id`)
+> is no longer counted as an extra participant, and it does not take a guest seat when guests join.
+
 Response: 200 OK
 ```json
 {
@@ -1179,31 +1182,142 @@ Response: 200 OK
 }
 ```
 
-### `POST` /group-reservations/{groupReservationId}/submit
-Response: 200 OK
+### `GET` /reservations/{reservationId}/guest-session-id
+> **New implementation (2026-10-29, group pre-order, level 2).**
+> Handler: `GetOwnerGuestSessionIdHandler` → `GuestSessionService.GetOwnerGuestSessionIdAsync`.
+
+Returns the id of the owner's own session in the group pre-order of this reservation.
+The session is created on the first request (`isOwnerSession: true`, no dishes) and the same id is
+returned afterwards.
+
+Auth: Cognito (`Authorization: Bearer <idToken>`). Only the owner of the reservation may call it.
+
+Response: `200 OK`
 ```json
 {
-  "message": "Group reservation pre-order submitted successfully."
+  "guestSessionId": "owner-session-123"
 }
 ```
 
-### `GET` /guest/groups/{groupReservationId}/sessions
-Response: 200 OK
+Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
+`404` reservation or its group reservation not found.
+
+Note: the owner session has no guest token, so the guest endpoints (`/guest/sessions/{guestSessionId}/...`)
+cannot be called for it yet.
+
+### `POST` /group-reservations/{groupReservationId}/submit
+> **New implementation (2026-10-29, group pre-order, level 2).** Replaces the earlier draft of this
+> endpoint, which returned a message and was never implemented.
+> Handler: `SubmitGroupPreOrderHandler` → `GuestSessionService.SubmitGroupPreOrderAsync`.
+
+The owner confirms the consolidated group pre-order, which is passed to the restaurant.
+
+Auth: Cognito (`Authorization: Bearer <idToken>`). Only the owner of the reservation may call it.
+
+Request:
+```json
+{
+  "reservationId": "reservation-123"
+}
+```
+
+What it does:
+1. Takes only the submitted sessions of the group (`isSubmitted: true`); others are ignored.
+2. Collects their dishes into one list and merges the same `dishId` (quantities are added up).
+   A dish deleted from the menu after it was added to a cart is skipped.
+3. Adds the merged dishes to the reservation's existing order: the quantity of a dish already in the
+   order is increased, a new dish is added with state `Pending`.
+4. Sets the order status to `SubmittedByCustomer` and the group reservation status to `Submitted`
+   (after this, guests can no longer join or change their carts).
+
+Response: `200 OK` with the merged dishes taken from the guest sessions:
 ```json
 [
-  {
-    "id": "string",
-    "groupReservationId": "string",
-    "guestName": "string",
-    "status": "string"
-  }
+  { "dishId": "dish1", "quantity": 3 },
+  { "dishId": "dish2", "quantity": 2 }
 ]
 ```
 
-### `DELETE` /guest/groups/{groupReservationId}/sessions/{guestSessionId}
-Response: 200 OK
+Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
+`404` group reservation or its reservation not found ·
+`400` `reservationId` missing or not the reservation of this group · no submitted sessions ·
+no dishes in the submitted sessions · order not found ·
+group already submitted (`errorCode: GroupReservationSubmitted`) or closed (`errorCode: GroupReservationExpired`).
+
+### `GET` /guest/groups/{groupReservationId}/sessions
+> **New implementation (2026-10-28, group pre-order, level 1).** Replaces the earlier draft of this
+> endpoint, which returned a flat list of sessions and was never implemented.
+> Handler: `GetGroupSessionsHandler` → `GuestSessionService.GetGroupSessionsAsync`.
+>
+> **Updated (2026-10-30).** The owner row is built from the reservation's order (the owner's cart,
+> `/orders`) instead of the always-empty owner session, so the group `total` includes the owner.
+> The same snapshot is returned by `DELETE /guest/groups/{groupReservationId}/sessions/{guestSessionId}`.
+
+Returns a snapshot of the group pre-order for the reservation owner: every participant, the dishes
+they added, a total per participant and a total for the whole group.
+
+Auth: Cognito (`Authorization: Bearer <idToken>`). Only the owner of the reservation may call it.
+
+- The owner always comes first with `"type": "Owner"` and the owner's first name; guests follow with
+  `"type": "Guest"` in the order they joined.
+- Owner row:
+  - `items` = the dishes of the reservation's order (`GET /orders/{reservationId}`); items a waiter
+    canceled are left out. No order yet → no items, `total: 0`.
+  - After the group submit (`POST /group-reservations/{groupReservationId}/submit`) the order also
+    contains the submitted guests' dishes, so they are subtracted again: the owner row keeps showing only
+    the owner's own dishes and nothing is counted twice.
+  - `id` = the owner session id (`GET /reservations/{reservationId}/guest-session-id`), or `null` if it
+    was never created. `isSubmitted` = the order status is `SubmittedByCustomer`.
+- `total` = Σ `dish.price × quantity`. A dish deleted from the menu after it was added to a cart
+  is left out of `items` and of the totals.
+- `dish` contains every `DishResponse` field (`description`, `weight`, `calories`, ... as in `GET /dishes/{id}`);
+  only some are shown below.
+
+Response: `200 OK`
 ```json
 {
-  "message": "Guest session removed from group successfully."
+  "participants": [
+    {
+      "id": "session1",
+      "type": "Guest",
+      "name": "Andrii",
+      "items": [
+        {
+          "dish": { "id": "dish1", "name": "Caesar Salad", "price": 180, "imageUrl": "string", "state": "Available" },
+          "quantity": 2
+        }
+      ],
+      "total": 360,
+      "isSubmitted": true
+    }
+  ],
+  "total": 360
 }
 ```
+
+Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
+`404` group reservation or its reservation not found.
+
+### `DELETE` /guest/groups/{groupReservationId}/sessions/{guestSessionId}
+> **Updated (2026-10-28).** The response was documented as a message, but the endpoint returns the
+> updated group snapshot, in the same format as `GET /guest/groups/{groupReservationId}/sessions`.
+> Both endpoints now share one snapshot builder.
+>
+> **Updated (2026-10-29, group pre-order, level 3).** Two guards added: the owner's own session cannot
+> be deleted, and no session can be deleted once the group is submitted or closed (its dishes are
+> already in the order).
+
+Auth: Cognito. Only the owner of the reservation may call it.
+
+Response: `200 OK` with the snapshot of the remaining participants:
+```json
+{
+  "participants": [ /* same shape as GET /guest/groups/{groupReservationId}/sessions */ ],
+  "total": 220
+}
+```
+
+Errors: `401` no Cognito token · `403` caller is not the owner ·
+`404` group reservation, reservation or guest session not found ·
+`400` session does not belong to this group · the session is the owner's own session ·
+group already submitted (`errorCode: GroupReservationSubmitted`) or closed (`errorCode: GroupReservationExpired`).
