@@ -1248,14 +1248,26 @@ group already submitted (`errorCode: GroupReservationSubmitted`) or closed (`err
 > **New implementation (2026-10-28, group pre-order, level 1).** Replaces the earlier draft of this
 > endpoint, which returned a flat list of sessions and was never implemented.
 > Handler: `GetGroupSessionsHandler` → `GuestSessionService.GetGroupSessionsAsync`.
+>
+> **Updated (2026-10-30).** The owner row is built from the reservation's order (the owner's cart,
+> `/orders`) instead of the always-empty owner session, so the group `total` includes the owner.
+> The same snapshot is returned by `DELETE /guest/groups/{groupReservationId}/sessions/{guestSessionId}`.
 
 Returns a snapshot of the group pre-order for the reservation owner: every participant, the dishes
 they added, a total per participant and a total for the whole group.
 
 Auth: Cognito (`Authorization: Bearer <idToken>`). Only the owner of the reservation may call it.
 
-- The owner's own session (if it exists) comes first with `"type": "Owner"` and the owner's first name;
-  guests follow with `"type": "Guest"`.
+- The owner always comes first with `"type": "Owner"` and the owner's first name; guests follow with
+  `"type": "Guest"` in the order they joined.
+- Owner row:
+  - `items` = the dishes of the reservation's order (`GET /orders/{reservationId}`); items a waiter
+    canceled are left out. No order yet → no items, `total: 0`.
+  - After the group submit (`POST /group-reservations/{groupReservationId}/submit`) the order also
+    contains the submitted guests' dishes, so they are subtracted again: the owner row keeps showing only
+    the owner's own dishes and nothing is counted twice.
+  - `id` = the owner session id (`GET /reservations/{reservationId}/guest-session-id`), or `null` if it
+    was never created. `isSubmitted` = the order status is `SubmittedByCustomer`.
 - `total` = Σ `dish.price × quantity`. A dish deleted from the menu after it was added to a cart
   is left out of `items` and of the totals.
 - `dish` contains every `DishResponse` field (`description`, `weight`, `calories`, ... as in `GET /dishes/{id}`);

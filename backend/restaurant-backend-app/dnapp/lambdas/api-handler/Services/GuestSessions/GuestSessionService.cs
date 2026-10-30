@@ -196,14 +196,14 @@ public class GuestSessionService(
 
         await guestSessionRepository.DeleteAsync(session);
 
-        return await BuildGroupSnapshotAsync(groupReservationId, userId);
+        return await BuildGroupSnapshotAsync(group, userId);
     }
 
     public async Task<GetAllSessionsResponse> GetGroupSessionsAsync(string userId, string groupReservationId)
     {
-        await ValidateReservationOwnerAsync(groupReservationId, userId);
+        var group = await ValidateReservationOwnerAsync(groupReservationId, userId);
 
-        return await BuildGroupSnapshotAsync(groupReservationId, userId);
+        return await BuildGroupSnapshotAsync(group, userId);
     }
     public async Task SubmitCartAsync(string guestSessionId)
     {
@@ -297,12 +297,19 @@ public class GuestSessionService(
         return group;
     }
 
-    private async Task<GetAllSessionsResponse> BuildGroupSnapshotAsync(string groupReservationId, string ownerUserId)
+    private async Task<GetAllSessionsResponse> BuildGroupSnapshotAsync(GroupReservation group, string ownerUserId)
     {
-        var sessions = await guestSessionRepository.GetAllByGroupReservationIdAsync(groupReservationId);
+        var sessions = await guestSessionRepository.GetAllByGroupReservationIdAsync(group.GroupReservationId);
+        var ownerSession = sessions.FirstOrDefault(s => s.IsOwnerSession);
+        var guestSessions = sessions.Where(s => !s.IsOwnerSession).ToList();
 
-        var dishIds = sessions
+        // The owner's own pre-order lives in the reservation's order, not in the owner session.
+        var order = await orderRepository.GetOrderByReservationIdAsync(group.ReservationId);
+        var ownerDishes = GetOwnerDishes(order, guestSessions, group.Status);
+
+        var dishIds = guestSessions
             .SelectMany(s => s.Dishes ?? [])
+            .Concat(ownerDishes)
             .Select(d => d.DishId)
             .Distinct()
             .ToArray();
@@ -312,24 +319,61 @@ public class GuestSessionService(
             .Where(d => d is not null)
             .ToDictionary(d => d.Id);
 
-        string? ownerName = sessions.Any(s => s.IsOwnerSession)
-            ? await GetOwnerNameAsync(ownerUserId)
-            : null;
+        string ownerName = await GetOwnerNameAsync(ownerUserId) ?? ownerSession?.GuestName ?? "Owner";
+
+        var ownerItems = ToItems(ownerDishes, dishesById);
+        var owner = new Participant(
+            ownerSession?.Id,
+            ParticipantType.Owner,
+            ownerName,
+            ownerItems,
+            ownerItems.Sum(i => i.Quantity * i.Dish.Price),
+            order?.Status == OrderStatus.SubmittedByCustomer);
 
         // Owner first, then guests in the order they joined the group.
-        var participants = sessions
-            .OrderByDescending(s => s.IsOwnerSession)
-            .Select(s => ToParticipant(s, dishesById, ownerName))
-            .ToList();
+        List<Participant> participants = [owner, .. guestSessions.Select(s => ToParticipant(s, dishesById))];
 
         return new GetAllSessionsResponse(participants, participants.Sum(p => p.Total));
     }
 
-    private static Participant ToParticipant(GuestSession session, Dictionary<string, Dish> dishesById, string? ownerName)
+    private static List<OrderItem> GetOwnerDishes(Order? order, List<GuestSession> guestSessions, GroupReservationStatus groupStatus)
+    {
+        // Items a waiter canceled are not part of the pre-order any more.
+        var quantities = (order?.Dishes ?? [])
+            .Where(d => d.State != OrderItemState.Canceled)
+            .GroupBy(d => d.DishId)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Quantity));
+
+        // The group submit merges the submitted guests' dishes into the order,
+        // so they are taken out again to keep the owner's own dishes and avoid counting them twice.
+        if (groupStatus == GroupReservationStatus.Submitted)
+        {
+            foreach (var dish in guestSessions.Where(s => s.IsSubmitted).SelectMany(s => s.Dishes ?? []))
+            {
+                if (quantities.ContainsKey(dish.DishId))
+                    quantities[dish.DishId] -= dish.Quantity;
+            }
+        }
+
+        return quantities
+            .Where(q => q.Value > 0)
+            .Select(q => new OrderItem { DishId = q.Key, Quantity = q.Value })
+            .ToList();
+    }
+
+    private static Participant ToParticipant(GuestSession session, Dictionary<string, Dish> dishesById)
+    {
+        var items = ToItems(session.Dishes ?? [], dishesById);
+        decimal total = items.Sum(i => i.Quantity * i.Dish.Price);
+
+        return new Participant(session.Id, ParticipantType.Guest, session.GuestName, items, total, session.IsSubmitted);
+    }
+
+    private static OrderItemResponse[] ToItems(IEnumerable<OrderItem> dishes, Dictionary<string, Dish> dishesById)
     {
         // A dish deleted from the menu after it was added to a cart is skipped,
         // so it is neither shown nor counted in the totals.
-        var items = (session.Dishes ?? [])
+        return dishes
             .Where(d => dishesById.ContainsKey(d.DishId))
             .Select(d => new OrderItemResponse
             {
@@ -337,12 +381,6 @@ public class GuestSessionService(
                 Quantity = d.Quantity
             })
             .ToArray();
-
-        decimal total = items.Sum(i => i.Quantity * i.Dish.Price);
-
-        return session.IsOwnerSession
-            ? new Participant(session.Id, ParticipantType.Owner, ownerName ?? session.GuestName, items, total, session.IsSubmitted)
-            : new Participant(session.Id, ParticipantType.Guest, session.GuestName, items, total, session.IsSubmitted);
     }
 
     private async Task<string?> GetOwnerNameAsync(string ownerUserId)
