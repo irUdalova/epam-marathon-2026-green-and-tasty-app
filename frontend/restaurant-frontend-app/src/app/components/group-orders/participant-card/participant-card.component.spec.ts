@@ -32,6 +32,16 @@ describe('Практичне · картка учасника', () => {
     });
   });
 
+  describe('власна картка', () => {
+    it('isOwn: <h2> «My Pre-Order»', () => {
+      const fixture = TestBed.createComponent(ParticipantCardComponent);
+      fixture.componentRef.setInput('participant', OWNER);
+      fixture.componentRef.setInput('isOwn', true);
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('h2')?.textContent).toContain('My Pre-Order');
+    });
+  });
+
   describe('крок 3 · страви і Subtotal', () => {
     it('показує назву страви, кількість і ціну × кількість через currency', () => {
       const text = render(OLENA).textContent ?? '';

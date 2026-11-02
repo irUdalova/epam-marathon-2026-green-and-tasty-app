@@ -101,4 +101,24 @@ describe('tokenInterceptor', () => {
       'Unauthorized',
     );
   });
+
+  it('sends the login token to the owner-only /guest/groups/ endpoints', () => {
+    authService.getTokens.and.returnValue({ idToken: 'id', accessToken: 'access' });
+    const url = 'https://test.api/guest/groups/grp-1/sessions';
+    http.get(url).subscribe();
+
+    const request = httpMock.expectOne(url);
+    expect(request.request.headers.get('Authorization')).toBe('Bearer id');
+    request.flush({ participants: [], total: 0 });
+  });
+
+  it('leaves guest-session requests untouched', () => {
+    authService.getTokens.and.returnValue({ idToken: 'id', accessToken: 'access' });
+    const url = 'https://test.api/guest/sessions/gs-1/dishes';
+    http.get(url).subscribe();
+
+    const request = httpMock.expectOne(url);
+    expect(request.request.headers.has('Authorization')).toBeFalse();
+    request.flush([]);
+  });
 });
