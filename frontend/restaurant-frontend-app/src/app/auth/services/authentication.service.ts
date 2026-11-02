@@ -17,7 +17,11 @@ export class AuthenticationService {
   public isAuthorised$: Observable<boolean> = this.isAuthorised$$.asObservable();
   public jwtHelperService = new JwtHelperService();
   private readonly http = inject(HttpClient);
-  
+
+  constructor() {
+    this.dropStaleLogin();
+  }
+
   async signIn(email: string, password: string): Promise<LoginResult> {
     const body = {
       email: email,
@@ -145,6 +149,16 @@ export class AuthenticationService {
         this.user$$.next(null);
       }
     );
+  }
+  // A stored login counts only with a valid token and the user profile. Otherwise the header
+  // hides Sign In without showing the user menu, and the user is stuck until storage is cleared.
+  private dropStaleLogin(): void {
+    if (localStorage.getItem('auth') === null) {
+      return;
+    }
+    if (this.getTokens() === null || this.getUser() === null) {
+      this.signOut();
+    }
   }
   getUser(): UserModel | null {
     const user = localStorage.getItem('user');

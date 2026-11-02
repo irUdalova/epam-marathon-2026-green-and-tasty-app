@@ -12,11 +12,13 @@ describe('tokenInterceptor', () => {
   let http: HttpClient;
   let httpMock: HttpTestingController;
   let toastService: jasmine.SpyObj<ToastService>;
+  let authService: jasmine.SpyObj<AuthenticationService>;
 
   beforeEach(() => {
     toastService = jasmine.createSpyObj<ToastService>('ToastService', ['error']);
-    const authService = jasmine.createSpyObj<AuthenticationService>('AuthenticationService', [
+    authService = jasmine.createSpyObj<AuthenticationService>('AuthenticationService', [
       'getTokens',
+      'signOut',
     ]);
     authService.getTokens.and.returnValue(null);
 
@@ -59,5 +61,44 @@ describe('tokenInterceptor', () => {
 
     expect(toastService.error).not.toHaveBeenCalled();
     expect(receivedStatus).toBe(400);
+  });
+
+  it('signs out and asks to sign in again when the API rejects the stored login', () => {
+    authService.getTokens.and.returnValue({ idToken: 'id', accessToken: 'access' });
+    http.get(URL).subscribe({ error: () => undefined });
+
+    const request = httpMock.expectOne(URL);
+    expect(request.request.headers.get('Authorization')).toBe('Bearer id');
+    request.flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    expect(authService.signOut).toHaveBeenCalled();
+    expect(toastService.error).toHaveBeenCalledWith(
+      'Your session has expired. Please sign in again.',
+      'Unauthorized',
+    );
+  });
+
+  it('signs out on 401 even when SKIP_ERROR_TOAST is set', () => {
+    authService.getTokens.and.returnValue({ idToken: 'id', accessToken: 'access' });
+    http
+      .get(URL, { context: new HttpContext().set(SKIP_ERROR_TOAST, true) })
+      .subscribe({ error: () => undefined });
+
+    httpMock.expectOne(URL).flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    expect(authService.signOut).toHaveBeenCalled();
+    expect(toastService.error).not.toHaveBeenCalled();
+  });
+
+  it('does not sign out on 401 when no one is logged in', () => {
+    http.get(URL).subscribe({ error: () => undefined });
+
+    httpMock.expectOne(URL).flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    expect(authService.signOut).not.toHaveBeenCalled();
+    expect(toastService.error).toHaveBeenCalledWith(
+      'Please log in to perform the action!',
+      'Unauthorized',
+    );
   });
 });

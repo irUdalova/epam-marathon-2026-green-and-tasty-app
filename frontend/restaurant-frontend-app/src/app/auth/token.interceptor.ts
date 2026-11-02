@@ -84,6 +84,12 @@ export const tokenInterceptor: HttpInterceptorFn = (
       console.log(error);
       const errorMessage = getServerErrorMessage(error) || 'An unexpected error occurred.';
 
+      // The API no longer accepts the stored login: sign out so the header offers Sign In again.
+      const loginRejected = error.status === 401 && !!tokens;
+      if (loginRejected) {
+        authService.signOut();
+      }
+
       if (clonedRequest.url.includes('orders') && error.status === 404) {
         return throwError(() => error);
       }
@@ -97,7 +103,12 @@ export const tokenInterceptor: HttpInterceptorFn = (
           toastr.error(errorMessage || 'Bad request.', 'Error');
           break;
         case 401:
-          toastr.error('Please log in to perform the action!', 'Unauthorized');
+          toastr.error(
+            loginRejected
+              ? 'Your session has expired. Please sign in again.'
+              : 'Please log in to perform the action!',
+            'Unauthorized',
+          );
           break;
         case 403:
           toastr.error(errorMessage || 'You are not allowed!', 'Forbidden');
