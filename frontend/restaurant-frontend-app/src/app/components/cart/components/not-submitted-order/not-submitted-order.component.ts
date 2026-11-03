@@ -19,6 +19,8 @@ import { Order } from '@app/models/orders/order.model';
 })
 export class NotSubmittedOrderComponent {
   readonly order = input.required<Order>();
+  /** A group booking's order is sent from the Group Pre-Order window, together with the guests'. */
+  readonly isGroup = input(false);
 
   readonly submitted = output<string>();
   readonly addDish = output<void>();

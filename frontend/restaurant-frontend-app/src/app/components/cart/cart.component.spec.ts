@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { Order } from '@app/models/orders/order.model';
 import { Reservation, ReservationStatus } from '@app/models/reservations/reservation.model';
@@ -157,6 +157,38 @@ describe('CartComponent', () => {
     });
   });
 
+  describe('loading', () => {
+    function text(): string {
+      return (fixture.nativeElement as HTMLElement).textContent ?? '';
+    }
+
+    it('says it is loading, not that the cart is empty, until the orders arrive', () => {
+      const orders$ = new Subject<Order[]>();
+      preOrdersServiceMock.getPreOrders.and.returnValue(orders$);
+      component.ngOnInit();
+      fixture.detectChanges();
+
+      expect(text()).toContain('Loading your pre-orders');
+      expect(text()).not.toContain('Your cart is empty');
+
+      orders$.next([]);
+      orders$.complete();
+      fixture.detectChanges();
+
+      expect(text()).not.toContain('Loading your pre-orders');
+      expect(text()).toContain('Your cart is empty');
+    });
+
+    it('says the cart is empty when loading fails', () => {
+      preOrdersServiceMock.getPreOrders.and.returnValue(throwError(() => new Error('offline')));
+      component.ngOnInit();
+      fixture.detectChanges();
+
+      expect(text()).not.toContain('Loading your pre-orders');
+      expect(text()).toContain('Your cart is empty');
+    });
+  });
+
   describe('orders of bookings that can no longer change', () => {
     const hour = 60 * 60_000;
 
@@ -226,6 +258,37 @@ describe('CartComponent', () => {
       expect(component.orders()[0].reservationTime).toBe(
         formatBookingTime(booking.startTime, booking.endTime),
       );
+    });
+
+    it('a group booking\'s order opens the Group Pre-Order window instead of being sent alone', () => {
+      spyOn(component.closeCartEvent, 'emit');
+      preOrdersServiceMock.getPreOrders.and.returnValue(of([order('group', 'res-group')]));
+      reservationServiceMock.getReservationsForUser$.and.returnValue(
+        of([{ ...reservation('res-group', 24 * hour), guestCount: 3 }]),
+      );
+      reload();
+
+      component.submitOrder('group');
+
+      expect(preOrdersServiceMock.submitPreOrderByReservationId).not.toHaveBeenCalled();
+      expect(component.closeCartEvent.emit).toHaveBeenCalled();
+      expect(routerMock.navigate).toHaveBeenCalledWith(['/reservations'], {
+        queryParams: { groupOrder: 'res-group' },
+      });
+    });
+
+    it('a one-guest booking\'s order is still sent from the basket', () => {
+      preOrdersServiceMock.getPreOrders.and.returnValue(of([order('solo', 'res-solo')]));
+      preOrdersServiceMock.submitPreOrderByReservationId.and.returnValue(of({}));
+      reservationServiceMock.getReservationsForUser$.and.returnValue(
+        of([{ ...reservation('res-solo', 24 * hour), guestCount: 1 }]),
+      );
+      reload();
+
+      component.submitOrder('solo');
+
+      expect(preOrdersServiceMock.submitPreOrderByReservationId).toHaveBeenCalledOnceWith('res-solo');
+      expect(routerMock.navigate).not.toHaveBeenCalled();
     });
 
     it('shows every order when the bookings cannot be loaded', () => {

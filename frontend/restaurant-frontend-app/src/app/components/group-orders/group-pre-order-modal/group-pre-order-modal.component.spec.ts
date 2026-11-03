@@ -106,6 +106,40 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       expect(create().element.textContent).toContain('Group reservation not found');
     });
 
+    describe('404 on a booking with an unsent order of the owner', () => {
+      const withOwnOrder = {
+        ...RESERVATION,
+        preOrder: { status: 0, orderItems: [{ dish: { id: 'dish1' }, quantity: 1, state: 0 }] },
+      };
+
+      function createNotFound(reservation: object) {
+        service.getGroupReservationId$.and.returnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+        const created = create();
+        created.fixture.componentRef.setInput('reservation', reservation);
+        created.fixture.detectChanges();
+        return created;
+      }
+
+      it('«Submit my Pre-Order» sends only the owner\'s order and closes the window', () => {
+        service.submitOwnerOrder$ = jasmine.createSpy('submitOwnerOrder$').and.returnValue(of({}));
+        const { fixture, element } = createNotFound(withOwnOrder);
+        let closed = 0;
+        fixture.componentInstance.closed.subscribe(() => closed++);
+
+        buttonByText(element, 'Submit my Pre-Order')!.click();
+
+        expect(service.submitOwnerOrder$).toHaveBeenCalledOnceWith('res-1');
+        expect(closed).toBe(1);
+      });
+
+      it('no button when the owner has no order, or it was already sent', () => {
+        expect(buttonByText(createNotFound(RESERVATION).element, 'Submit my Pre-Order')).toBeUndefined();
+        TestBed.resetTestingModule();
+        const sent = { ...withOwnOrder, preOrder: { ...withOwnOrder.preOrder, status: 1 } };
+        expect(buttonByText(createNotFound(sent).element, 'Submit my Pre-Order')).toBeUndefined();
+      });
+    });
+
     it('інша помилка: кнопка «Try again» вантажить ще раз', () => {
       service.getGroupReservationId$.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
       const { fixture, element } = create();

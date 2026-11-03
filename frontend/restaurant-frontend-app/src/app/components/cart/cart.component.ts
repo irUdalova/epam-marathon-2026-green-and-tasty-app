@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { catchError, forkJoin, of } from 'rxjs';
+import { catchError, finalize, forkJoin, of } from 'rxjs';
 
 import { Order } from '@app/models/orders/order.model';
 import { Reservation, ReservationStatus } from '@app/models/reservations/reservation.model';
@@ -53,6 +53,19 @@ export class CartComponent implements OnInit {
   readonly closeCartEvent = output<void>();
 
   readonly orders = signal<Order[]>([]);
+
+  // Orders and bookings load together and can take a few seconds; until then the basket
+  // must not claim to be empty.
+  readonly loading = signal(true);
+  readonly showLoading = computed(
+    () => this.loading() && this.orders().length === 0,
+  );
+  readonly showEmpty = computed(
+    () => !this.loading() && this.orders().length === 0,
+  );
+
+  // Bookings for 2 or more guests: their order goes through the Group Pre-Order window.
+  readonly groupReservationIds = signal<ReadonlySet<string>>(new Set());
 
   readonly cancelOrderId = signal<string | null>(null);
   readonly submitOrderId = signal<string | null>(null);
@@ -168,6 +181,16 @@ export class CartComponent implements OnInit {
     const order = this.findOrder(orderId);
 
     if (!order) {
+      return;
+    }
+
+    // Sending it from here would leave the guests' dishes out, so the owner reviews and
+    // submits the whole group order in the Group Pre-Order window instead.
+    if (this.groupReservationIds().has(order.reservationId)) {
+      this.closeCart();
+      void this.router.navigate(['/reservations'], {
+        queryParams: { groupOrder: order.reservationId },
+      });
       return;
     }
 
@@ -333,6 +356,8 @@ export class CartComponent implements OnInit {
   }
 
   private loadOrders(): void {
+    this.loading.set(true);
+
     forkJoin({
       orders: this.preOrdersService.getPreOrders(),
       // Without the bookings the basket still opens, just without the filter.
@@ -340,9 +365,19 @@ export class CartComponent implements OnInit {
         .getReservationsForUser$()
         .pipe(catchError(() => of(null))),
     })
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: ({ orders, reservations }) => {
+          this.groupReservationIds.set(
+            new Set(
+              (reservations ?? [])
+                .filter((reservation) => reservation.guestCount >= 2)
+                .map((reservation) => reservation.id),
+            ),
+          );
           this.orders.set(
             reservations
               ? this.openOrders(orders, reservations)

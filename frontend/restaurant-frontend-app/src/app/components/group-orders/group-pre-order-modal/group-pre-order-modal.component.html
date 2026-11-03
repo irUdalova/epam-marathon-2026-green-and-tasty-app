@@ -41,6 +41,17 @@
     @case ('not-found') {
       <div class="state-message">
         <p>Group reservation not found</p>
+        @if (canSubmitOwnOnly()) {
+          <p class="own-only-note">No guests have joined this booking, so you can send only your own pre-order.</p>
+          <button
+            type="button"
+            class="button button--primary button--large"
+            [disabled]="submitting()"
+            (click)="submitOwnOnly()"
+          >
+            {{ submitting() ? 'Submitting…' : 'Submit my Pre-Order' }}
+          </button>
+        }
         <button type="button" class="button button--secondary button--large" (click)="closed.emit()">Close</button>
       </div>
     }

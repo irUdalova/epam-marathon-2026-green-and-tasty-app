@@ -97,6 +97,13 @@ export class GroupPreOrderModalComponent implements OnInit {
     this.participants().some((person) => !this.isOwner(person) && person.isSubmitted),
   );
 
+  // A booking made before group pre-orders existed has no group (404). If the owner has an
+  // unsent order of their own, it can still be sent from here, alone.
+  readonly canSubmitOwnOnly = computed(() => {
+    const order = this.reservation().preOrder;
+    return !!order && order.status === 0 && order.orderItems.length > 0 && !this.preOrderClosed();
+  });
+
   readonly canSubmit = computed(
     () =>
       !this.isLocked() && !this.submitting() && !this.savingOwnOrder() && this.consolidated().items.length > 0,
@@ -184,6 +191,28 @@ export class GroupPreOrderModalComponent implements OnInit {
         this.confirmOpen.set(false);
       },
     });
+  }
+
+  submitOwnOnly(): void {
+    if (!this.canSubmitOwnOnly() || this.submitting()) {
+      return;
+    }
+
+    this.submitting.set(true);
+    this.groupOrdersService
+      .submitOwnerOrder$(this.reservationId())
+      .pipe(
+        finalize(() => this.submitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.toastService.success('Pre-order sent to the restaurant');
+          this.closed.emit();
+        },
+        // tokenInterceptor already shows the API error in a toast.
+        error: () => undefined,
+      });
   }
 
   changeOwnQuantity(owner: Participant, change: { dishId: string; quantity: number }): void {

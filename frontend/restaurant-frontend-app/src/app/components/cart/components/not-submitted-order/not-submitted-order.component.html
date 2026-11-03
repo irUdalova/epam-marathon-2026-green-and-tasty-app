@@ -113,6 +113,6 @@
     class="button button--primary button--large submit-btn"
     (click)="submit()"
   >
-    Submit Pre-order
+    {{ isGroup() ? 'Review Group Pre-Order' : 'Submit Pre-order' }}
   </button>
 </div>
