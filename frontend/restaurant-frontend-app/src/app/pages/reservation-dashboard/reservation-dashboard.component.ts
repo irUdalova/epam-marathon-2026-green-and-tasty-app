@@ -37,6 +37,7 @@ import {
 import { Table } from '@app/models/tables/table.model';
 import { TimeRange } from '@app/models/tables/time-range.model';
 import { LocationsService } from '@app/services/locations/locations.service';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
 import { ReservationService } from '@app/services/reservation/reservation.service';
 import { TableService } from '@app/services/table/table.service';
@@ -80,6 +81,7 @@ export class ReservationDashboardComponent implements OnInit {
   private readonly tableService = inject(TableService);
   private readonly locationsService = inject(LocationsService);
   private readonly ordersService = inject(PreOrdersService);
+  private readonly cartSummaryService = inject(CartSummaryService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -213,6 +215,9 @@ export class ReservationDashboardComponent implements OnInit {
             );
             return;
           }
+
+          // The cancelled booking's order leaves the basket.
+          this.cartSummaryService.refresh();
 
           this.reservations.update((reservations) =>
             reservations.map((reservation) =>

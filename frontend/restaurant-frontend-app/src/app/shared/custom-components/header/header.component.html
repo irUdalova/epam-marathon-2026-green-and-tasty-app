@@ -51,8 +51,18 @@
       @if (user()?.role === Roles.CUSTOMER && !isGuestPreorderRoute) {
         @if (!showCart()) {
           <div>
-            <button type="button" class="icon-button icon-button--large" (click)="toggleCart()">
-              <img src="assets/svg/cart-empty.svg" alt="cart icon" class="action-icon" />
+            <button
+              type="button"
+              class="icon-button icon-button--large cart-button"
+              [attr.aria-label]="cartButtonLabel()"
+              (click)="toggleCart()"
+            >
+              <span class="cart-icon">
+                <img src="assets/svg/cart-empty.svg" alt="" class="action-icon" />
+                @if (cartCount() > 0) {
+                  <span class="notification-badge" aria-hidden="true">{{ cartCountLabel() }}</span>
+                }
+              </span>
               <h5> Cart</h5>
             </button>
           </div>
@@ -144,12 +154,22 @@
     }
 
     @if (user()?.role === Roles.CUSTOMER && !isGuestPreorderRoute) {
-      <button class="icon-button icon-button--small" type="button"  (click)="toggleCart()">
-        <img
-          [src]="'assets/svg/cart-empty.svg'"
-          alt="cart icon"
-          class="action-icon"
-        />
+      <button
+        class="icon-button icon-button--small cart-button"
+        type="button"
+        [attr.aria-label]="cartButtonLabel()"
+        (click)="toggleCart()"
+      >
+        <span class="cart-icon">
+          <img
+            [src]="'assets/svg/cart-empty.svg'"
+            alt=""
+            class="action-icon"
+          />
+          @if (cartCount() > 0) {
+            <span class="notification-badge" aria-hidden="true">{{ cartCountLabel() }}</span>
+          }
+        </span>
       </button>
     }
 

@@ -19,6 +19,7 @@ import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-r
 import { GroupReservationStatus } from '@app/models/group-orders/group-status.model';
 import { Participant, ParticipantItem } from '@app/models/group-orders/participant.model';
 import { ReservationCustomer } from '@app/models/reservations/reservation.model';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { GroupOrdersService, OwnerOrderItem } from '@app/services/group-orders/group-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { ModalComponent } from '@app/shared/custom-components/modal/modal.component';
@@ -45,6 +46,7 @@ export class GroupPreOrderModalComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly groupOrdersService = inject(GroupOrdersService);
   private readonly toastService = inject(ToastService);
+  private readonly cartSummaryService = inject(CartSummaryService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** The booking from My Bookings; it also gives the header its address, time and guest count. */
@@ -184,6 +186,7 @@ export class GroupPreOrderModalComponent implements OnInit {
         this.confirmOpen.set(false);
         this.status.set('Submitted');
         this.toastService.success('Pre-order sent to the restaurant');
+        this.cartSummaryService.refresh();
       },
       // tokenInterceptor already shows the API error in a toast.
       error: () => {
@@ -208,6 +211,7 @@ export class GroupPreOrderModalComponent implements OnInit {
       .subscribe({
         next: () => {
           this.toastService.success('Pre-order sent to the restaurant');
+          this.cartSummaryService.refresh();
           this.closed.emit();
         },
         // tokenInterceptor already shows the API error in a toast.
@@ -249,7 +253,10 @@ export class GroupPreOrderModalComponent implements OnInit {
       .updateOwnerOrder$(this.reservationId(), orderItems)
       .pipe(
         // Re-read even after an error (its toast comes from tokenInterceptor), so the screen matches the server.
-        finalize(() => this.refreshSessions(groupId)),
+        finalize(() => {
+          this.refreshSessions(groupId);
+          this.cartSummaryService.refresh();
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({ error: () => undefined });

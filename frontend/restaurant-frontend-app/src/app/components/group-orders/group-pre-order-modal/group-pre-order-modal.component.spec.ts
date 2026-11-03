@@ -6,6 +6,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
 import { ReservationCustomer } from '@app/models/reservations/reservation.model';
@@ -44,6 +45,7 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       providers: [
         { provide: GroupOrdersService, useValue: service },
         { provide: ToastService, useValue: jasmine.createSpyObj('ToastService', ['success', 'error', 'info']) },
+        { provide: CartSummaryService, useValue: jasmine.createSpyObj('CartSummaryService', ['refresh']) },
       ],
     });
     const fixture = TestBed.createComponent(GroupPreOrderModalComponent);

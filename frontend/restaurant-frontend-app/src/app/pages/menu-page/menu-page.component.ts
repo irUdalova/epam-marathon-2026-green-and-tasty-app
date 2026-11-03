@@ -9,6 +9,7 @@ import { DishType } from '@app/models/enums/dish-type.model';
 import { DishSortingLabels, DishTypeLabels } from '@app/shared/mappers/dish-enum.mapper';
 import { DishModalComponent } from '@app/components/dish-modal/dish-modal.component';
 import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import {ToastService} from '@app/services/toast/toast.service';
 
 @Component({
@@ -47,6 +48,7 @@ export class MenuPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private  readonly orderService = inject(PreOrdersService);
+  private readonly cartSummaryService = inject(CartSummaryService);
 
   ngOnInit(): void {
     this.route.queryParams.subscribe((params) => {
@@ -144,6 +146,7 @@ export class MenuPageComponent implements OnInit {
       .subscribe({
         next: () => {
           this.toast.success('Dish added to cart successfully!', 'Success');
+          this.cartSummaryService.refresh();
         },
         // tokenInterceptor already shows the API's message; a second toast here only showed
         // the generic "Http failure response …" text.

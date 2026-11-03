@@ -10,17 +10,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { catchError, finalize, forkJoin, of } from 'rxjs';
+import { finalize } from 'rxjs';
 
 import { Order } from '@app/models/orders/order.model';
-import { Reservation, ReservationStatus } from '@app/models/reservations/reservation.model';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
-import { ReservationService } from '@app/services/reservation/reservation.service';
-import {
-  buildPreOrderQueryParamsFromOrder,
-  formatBookingTime,
-} from '@app/shared/helpers/pre-order-query-params';
-import { isPreOrderClosed } from '@app/shared/helpers/pre-order-window';
+import { buildPreOrderQueryParamsFromOrder } from '@app/shared/helpers/pre-order-query-params';
 
 import { CancelOrderModalComponent } from './components/cancel-order-modal/cancel-order-modal.component';
 import { NotSubmittedOrderComponent } from './components/not-submitted-order/not-submitted-order.component';
@@ -44,8 +39,8 @@ export class CartComponent implements OnInit {
   private readonly preOrdersService =
     inject(PreOrdersService);
 
-  private readonly reservationService =
-    inject(ReservationService);
+  private readonly cartSummaryService =
+    inject(CartSummaryService);
 
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -307,42 +302,6 @@ export class CartComponent implements OnInit {
       });
   }
 
-  // GET /orders also returns orders of cancelled bookings and of bookings that have started or
-  // passed (their status can stay Reserved). None of them can change any more, so the basket
-  // keeps only orders whose booking is Reserved and more than 30 minutes away.
-  // The order's own reservationTime is UTC text saved when the order was created, so it is
-  // replaced with the booking's current time in local time, as My Bookings shows it.
-  private openOrders(
-    orders: Order[],
-    reservations: Reservation[],
-  ): Order[] {
-    const openReservations = new Map(
-      reservations
-        .filter(
-          (reservation) =>
-            reservation.status === ReservationStatus.Reserved &&
-            !isPreOrderClosed(reservation.startTime),
-        )
-        .map((reservation) => [reservation.id, reservation]),
-    );
-
-    return orders.flatMap((order) => {
-      const reservation = openReservations.get(order.reservationId);
-
-      return reservation
-        ? [
-          {
-            ...order,
-            reservationTime: formatBookingTime(
-              reservation.startTime,
-              reservation.endTime,
-            ),
-          },
-        ]
-        : [];
-    });
-  }
-
   private findOrder(orderId: string): Order | undefined {
     const order = this.orders().find(
       (item) => item.orderId === orderId,
@@ -358,31 +317,16 @@ export class CartComponent implements OnInit {
   private loadOrders(): void {
     this.loading.set(true);
 
-    forkJoin({
-      orders: this.preOrdersService.getPreOrders(),
-      // Without the bookings the basket still opens, just without the filter.
-      reservations: this.reservationService
-        .getReservationsForUser$()
-        .pipe(catchError(() => of(null))),
-    })
+    this.cartSummaryService
+      .load$()
       .pipe(
         finalize(() => this.loading.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ orders, reservations }) => {
-          this.groupReservationIds.set(
-            new Set(
-              (reservations ?? [])
-                .filter((reservation) => reservation.guestCount >= 2)
-                .map((reservation) => reservation.id),
-            ),
-          );
-          this.orders.set(
-            reservations
-              ? this.openOrders(orders, reservations)
-              : orders,
-          );
+        next: ({ orders, groupReservationIds }) => {
+          this.groupReservationIds.set(groupReservationIds);
+          this.orders.set(orders);
         },
         error: (error) => {
           console.error('Error loading orders:', error);
