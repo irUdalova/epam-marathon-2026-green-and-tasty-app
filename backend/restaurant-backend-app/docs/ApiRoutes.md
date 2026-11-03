@@ -527,6 +527,10 @@ Response: `200 OK`
 }
 ```
 
+> **Updated (2026-11-03).** A Reserved booking for two or more guests that has no group reservation yet
+> (edited from one guest to more, or made before group pre-orders existed) gets one here, so the link can be
+> shared. Before, this returned `500`.
+
 ### `GET` /reservations/{reservationId}/feedback
 Response: `200 OK`
 ```json
@@ -1208,6 +1212,9 @@ Response: `200 OK`
 
 Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
 `404` reservation or its group reservation not found.
+
+> **Updated (2026-11-03).** A Reserved booking for two or more guests that has no group reservation yet gets
+> one here instead of `404`. A one-guest, cancelled or finished booking without a group still returns `404`.
 
 Note: the owner session has no guest token, so the guest endpoints (`/guest/sessions/{guestSessionId}/...`)
 cannot be called for it yet.

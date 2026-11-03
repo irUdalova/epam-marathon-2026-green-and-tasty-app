@@ -190,6 +190,33 @@ public class GroupReservationServiceTests
 
     [Theory]
     [AutoData]
+    public async Task GetGroupReservationInviteTokenAsync_GroupBookingWithoutGroup_CreatesGroupAndReturnsItsToken(Reservation reservation)
+    {
+        reservation.Status = ReservationStatus.Reserved;
+        reservation.GuestCount = 3;
+        GroupReservation? saved = null;
+
+        _reservationRepositoryMock
+            .Setup(r => r.GetReservationByIdAsync(reservation.Id))
+            .ReturnsAsync(reservation);
+        _groupReservationRepositoryMock
+            .Setup(r => r.GetByReservationIdAsync(reservation.Id))
+            .ReturnsAsync((GroupReservation?)null);
+        _groupReservationRepositoryMock
+            .Setup(r => r.SaveGroupReservationAsync(It.IsAny<GroupReservation>()))
+            .Callback<GroupReservation>(group => saved = group);
+
+        GetGroupInviteTokenResponse result = await _service.GetGroupReservationInviteTokenAsync(reservation.Id);
+
+        Assert.NotNull(saved);
+        Assert.Equal(reservation.Id, saved.ReservationId);
+        Assert.Equal(GroupReservationStatus.Open, saved.Status);
+        Assert.Equal(saved.ReservationToken, result.Token);
+        _groupReservationRepositoryMock.Verify(r => r.SaveGroupReservationAsync(It.IsAny<GroupReservation>()), Times.Once);
+    }
+
+    [Theory]
+    [AutoData]
     public async Task GetGroupReservationInviteTokenAsync_InvalidReservationId_ThrowsNotFound(string reservationId)
     {
         _reservationRepositoryMock

@@ -14,6 +14,7 @@ using APIHandler.Repositories.GuestSessions;
 using APIHandler.Repositories.Orders;
 using APIHandler.Repositories.Reservations;
 using APIHandler.Repositories.Tables;
+using APIHandler.Services.GroupReservations;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -31,7 +32,8 @@ public class GuestSessionService(
     IReservationRepository reservationRepository,
     IUserRepository userRepository,
     ITableRepository tableRepository,
-    IOrderRepository orderRepository) : IGuestSessionService
+    IOrderRepository orderRepository,
+    IGroupReservationService groupReservationService) : IGuestSessionService
 {
     public async Task<bool> IsAuthorizedAsync(string guestSessionToken, string guestSessionId)
     {
@@ -396,8 +398,12 @@ public class GuestSessionService(
 
         EnsureReservationOwner(reservation, userId);
 
+        // A booking edited from one guest to more, or made before group pre-orders existed, has no
+        // group yet; a Reserved booking for two or more gets one here, as when it is made.
         var group = await groupReservationRepository.GetByReservationIdAsync(reservationId)
-            ?? throw new GroupReservationNotFoundException();
+            ?? (reservation.Status == ReservationStatus.Reserved && reservation.GuestCount >= 2
+                ? await groupReservationService.CreateGroupReservationAsync(reservationId)
+                : throw new GroupReservationNotFoundException());
 
         var sessions = await guestSessionRepository.GetAllByGroupReservationIdAsync(group.GroupReservationId);
 
