@@ -1,0 +1,31 @@
+@use 'app/shared/styles/abstracts/colors' as color;
+
+.summary,
+.note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.summary {
+  font-weight: 500;
+  color: color.$neutral-900;
+}
+
+.note {
+  margin-bottom: 16px;
+  color: color.$neutral-700;
+}
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  margin: 16px 0 0;
+  font-size: 24px;
+  font-weight: 500;
+  color: color.$neutral-900;
+}
+
+.amount {
+  color: color.$green-600;
+}

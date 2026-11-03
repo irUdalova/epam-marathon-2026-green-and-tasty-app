@@ -19,6 +19,7 @@ import { PlaceOrderWaiterComponent } from '@app/components/place-order-waiter/pl
 import { Roles } from '@app/shared/constants/roles';
 import { CustomSelectComponent } from '@app/shared/custom-components/custom-select/custom-select.component';
 import { buildPreOrderQueryParams } from '@app/shared/helpers/pre-order-query-params';
+import { isPreOrderClosed } from '@app/shared/helpers/pre-order-window';
 
 interface ReservationStatusView {
   class: string;
@@ -93,10 +94,24 @@ export class CardReservationComponent {
   }>();
 
   readonly preOrder = output<CreateOrderRequest>();
+
+  /** Opens the group pre-order review for this reservation. */
+  readonly groupPreOrder = output<string>();
+
+  /** Shows the group invite link again. */
+  readonly inviteGuests = output<ReservationCustomer>();
+
+  /** Shows a closed one-guest booking's pre-order, read-only. */
+  readonly viewPreOrder = output<ReservationCustomer>();
   readonly showWaiterOrderModal = signal(false);
 
   readonly statusView = computed<ReservationStatusView>(() => {
     const reservation = this.r();
+
+    // The backend keeps a past booking Reserved; the customer sees that it is over.
+    if (this.isExpired()) {
+      return { class: 'finished', label: 'Expired' };
+    }
 
     return (
       this.statusEnum()[reservation.status] ?? {
@@ -134,6 +149,41 @@ export class CardReservationComponent {
     return (
       this.preOrderItemCount() > 0 ||
       this.creatorRole() === Roles.WAITER
+    );
+  });
+
+  // Guests can join through the invite link only when the table is for two or more.
+  readonly isGroupReservation = computed(() => {
+    return this.r().guestCount >= 2;
+  });
+
+  // From 30 minutes before the start the backend refuses to cancel, edit or change the pre-order,
+  // and a past booking can still say Reserved. The customer then can only look at what was ordered.
+  readonly preOrderClosed = computed(() => {
+    return isPreOrderClosed(this.r().startTime);
+  });
+
+  readonly isClosedForCustomer = computed(() => {
+    return (
+      this.role() === Roles.CUSTOMER &&
+      this.r().status === ReservationStatusCustomer.Reserved &&
+      this.preOrderClosed()
+    );
+  });
+
+  readonly isExpired = computed(() => {
+    return (
+      this.isClosedForCustomer() &&
+      Date.now() >= new Date(this.r().endTime).getTime()
+    );
+  });
+
+  // A group booking shows its order in the group pre-order; a one-guest booking gets its own view.
+  readonly canViewOwnPreOrder = computed(() => {
+    return (
+      this.isClosedForCustomer() &&
+      !this.isGroupReservation() &&
+      this.preOrderItemCount() > 0
     );
   });
 

@@ -1,6 +1,8 @@
 import {
   buildPreOrderLabel,
   buildPreOrderQueryParams,
+  buildPreOrderQueryParamsFromOrder,
+  formatBookingTime,
   PreOrderReservation,
 } from './pre-order-query-params';
 
@@ -43,6 +45,37 @@ describe('pre-order-query-params', () => {
         reservationId: 'res-1',
         reservationLabel: '9 Abashidze Street, Sun, Nov 1, 2026, 11:45 AM – 1:15 PM',
       });
+    });
+  });
+
+  describe('formatBookingTime', () => {
+    it('gives the weekday, date and time range without the address', () => {
+      expect(formatBookingTime(RESERVATION.startTime, RESERVATION.endTime)).toBe(
+        'Sun, Nov 1, 2026, 11:45 AM – 1:15 PM',
+      );
+    });
+  });
+
+  describe('buildPreOrderQueryParamsFromOrder', () => {
+    it('uses the order address and booking time as the label', () => {
+      expect(
+        buildPreOrderQueryParamsFromOrder({
+          reservationId: 'res-1',
+          reservationAddress: '9 Abashidze Street',
+          reservationTime: 'Nov 01, 2026, 10:45 AM - 12:15 PM',
+        }),
+      ).toEqual({
+        preOrder: 'true',
+        reservationId: 'res-1',
+        reservationLabel: '9 Abashidze Street, Nov 01, 2026, 10:45 AM - 12:15 PM',
+      });
+    });
+
+    it('leaves out a missing address', () => {
+      expect(
+        buildPreOrderQueryParamsFromOrder({ reservationId: 'res-1', reservationAddress: '', reservationTime: 'Nov 01' })
+          ['reservationLabel'],
+      ).toBe('Nov 01');
     });
   });
 });

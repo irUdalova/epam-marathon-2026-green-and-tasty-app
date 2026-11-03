@@ -1,0 +1,12 @@
+<app-modal title="Invite Guests" (closed)="closed.emit()">
+  <p class="summary">
+    {{ reservation().locationAddress }} · {{ reservation().startTime | date: 'MMM d, y' }},
+    {{ reservation().startTime | date: 'HH:mm' }} – {{ reservation().endTime | date: 'HH:mm' }}
+  </p>
+  <p class="text">Share this link with your guests so they can place their pre-orders.</p>
+  <app-invite-link [reservationId]="reservation().id" />
+
+  <div modal-actions class="actions">
+    <button type="button" class="button button--primary button--large" (click)="closed.emit()">Done</button>
+  </div>
+</app-modal>

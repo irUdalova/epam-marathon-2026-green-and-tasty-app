@@ -8,25 +8,25 @@
       }
     </div>
 
-    @if (invite(); as invite) {
+    @if (reservation(); as reservation) {
       <ul class="meta">
         <li>
           <img src="assets/svg/location-green.svg" alt="" width="16" height="16" />
-          <span class="visually-hidden">Address:</span> {{ invite.LocationAddress }}
+          <span class="visually-hidden">Address:</span> {{ reservation.locationAddress }}
         </li>
         <li>
           <img src="assets/svg/calendar-green.svg" alt="" width="16" height="16" />
-          <span class="visually-hidden">Date:</span> {{ invite.StartTime | date: 'MMM d, y' }}
+          <span class="visually-hidden">Date:</span> {{ reservation.startTime | date: 'MMM d, y' }}
         </li>
         <li>
           <img src="assets/svg/clock-green.svg" alt="" width="16" height="16" />
           <span class="visually-hidden">Time:</span>
-          {{ invite.StartTime | date: 'HH:mm' }} – {{ invite.EndTime | date: 'HH:mm' }}
+          {{ reservation.startTime | date: 'HH:mm' }} – {{ reservation.endTime | date: 'HH:mm' }}
         </li>
         @if (state() === 'ready') {
           <li>
             <img src="assets/svg/people-green.svg" alt="" width="16" height="16" />
-            {{ participants().length }} of {{ invite.MaxGuestCount }} guests
+            {{ participants().length }} of {{ reservation.guestCount }} guests
           </li>
         }
       </ul>
@@ -67,6 +67,7 @@
       <ul class="participants">
         @for (person of participants(); track person.id ?? $index) {
           <li>
+            <!-- A locked order shows the owner's card read-only, the same as a guest's. -->
             <app-participant-card
               [participant]="person"
               [isOwn]="isOwner(person)"
@@ -92,7 +93,11 @@
         </p>
 
         @if (isLocked()) {
-          <p class="sent-note">This pre-order has been sent to the restaurant. It can no longer be changed here.</p>
+          @if (closedByTime()) {
+            <p class="sent-note">Pre-orders close 30 minutes before the booking starts, so this one can no longer be changed.</p>
+          } @else {
+            <p class="sent-note">This pre-order has been sent to the restaurant. It can no longer be changed here.</p>
+          }
         } @else {
           <button
             type="button"

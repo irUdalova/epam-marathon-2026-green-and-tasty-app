@@ -1,9 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { Order } from '@app/models/orders/order.model';
+import { Reservation, ReservationStatus } from '@app/models/reservations/reservation.model';
 import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
+import { ReservationService } from '@app/services/reservation/reservation.service';
+import { formatBookingTime } from '@app/shared/helpers/pre-order-query-params';
 
 import { CartComponent } from './cart.component';
 
@@ -13,6 +16,7 @@ describe('CartComponent', () => {
 
   let preOrdersServiceMock: jasmine.SpyObj<PreOrdersService>;
   let routerMock: jasmine.SpyObj<Router>;
+  let reservationServiceMock: jasmine.SpyObj<ReservationService>;
 
   beforeEach(async () => {
     preOrdersServiceMock =
@@ -34,6 +38,12 @@ describe('CartComponent', () => {
 
     preOrdersServiceMock.getPreOrders.and.returnValue(of([]));
 
+    reservationServiceMock = jasmine.createSpyObj<ReservationService>(
+      'ReservationService',
+      ['getReservationsForUser$'],
+    );
+    reservationServiceMock.getReservationsForUser$.and.returnValue(of([]));
+
     await TestBed.configureTestingModule({
       imports: [CartComponent],
       providers: [
@@ -44,6 +54,10 @@ describe('CartComponent', () => {
         {
           provide: Router,
           useValue: routerMock,
+        },
+        {
+          provide: ReservationService,
+          useValue: reservationServiceMock,
         },
       ],
     }).compileComponents();
@@ -116,6 +130,116 @@ describe('CartComponent', () => {
         .unsubmittedOrders()
         .map((order) => order.status),
     ).toEqual([0]);
+  });
+
+  it('opens the menu in pre-order mode for the order when Add dish is clicked', () => {
+    spyOn(component.closeCartEvent, 'emit');
+    component.orders.set([
+      {
+        orderId: 'order-1',
+        reservationId: 'res-1',
+        reservationAddress: '9 Abashidze Street',
+        reservationTime: 'Nov 01, 2026, 10:45 AM - 12:15 PM',
+        orderItems: [],
+        status: 0,
+      },
+    ]);
+
+    component.addDishToOrder('order-1');
+
+    expect(component.closeCartEvent.emit).toHaveBeenCalled();
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/menu'], {
+      queryParams: {
+        preOrder: 'true',
+        reservationId: 'res-1',
+        reservationLabel: '9 Abashidze Street, Nov 01, 2026, 10:45 AM - 12:15 PM',
+      },
+    });
+  });
+
+  describe('orders of bookings that can no longer change', () => {
+    const hour = 60 * 60_000;
+
+    function order(orderId: string, reservationId: string): Order {
+      return {
+        orderId,
+        reservationId,
+        reservationAddress: '9 Abashidze Street',
+        reservationTime: '',
+        orderItems: [],
+        status: 0,
+      };
+    }
+
+    function reservation(
+      id: string,
+      startsInMs: number,
+      status = ReservationStatus.Reserved,
+    ): Reservation {
+      return {
+        id,
+        status,
+        startTime: new Date(Date.now() + startsInMs),
+        endTime: new Date(Date.now() + startsInMs + hour),
+      } as Reservation;
+    }
+
+    function reload(): void {
+      component.ngOnInit();
+    }
+
+    it('keeps only orders of Reserved bookings more than 30 minutes away', () => {
+      preOrdersServiceMock.getPreOrders.and.returnValue(
+        of([
+          order('future', 'res-future'),
+          order('soon', 'res-soon'),
+          order('past', 'res-past'),
+          order('cancelled', 'res-cancelled'),
+          order('in-progress', 'res-in-progress'),
+          order('no-booking', 'res-missing'),
+        ]),
+      );
+      reservationServiceMock.getReservationsForUser$.and.returnValue(
+        of([
+          reservation('res-future', 24 * hour),
+          reservation('res-soon', 20 * 60_000),
+          reservation('res-past', -48 * hour),
+          reservation('res-cancelled', 24 * hour, ReservationStatus.Cancelled),
+          reservation('res-in-progress', 24 * hour, ReservationStatus.InProggress),
+        ]),
+      );
+
+      reload();
+
+      expect(component.orders().map((item) => item.orderId)).toEqual(['future']);
+    });
+
+    it('shows the booking\'s current time in local time instead of the order\'s saved UTC text', () => {
+      const booking = reservation('res-future', 24 * hour);
+      preOrdersServiceMock.getPreOrders.and.returnValue(
+        of([{ ...order('future', 'res-future'), reservationTime: 'Nov 04, 2026, 10:00 AM - 11:30 AM' }]),
+      );
+      reservationServiceMock.getReservationsForUser$.and.returnValue(of([booking]));
+
+      reload();
+
+      expect(component.orders()[0].reservationTime).toBe(
+        formatBookingTime(booking.startTime, booking.endTime),
+      );
+    });
+
+    it('shows every order when the bookings cannot be loaded', () => {
+      preOrdersServiceMock.getPreOrders.and.returnValue(
+        of([order('order-1', 'res-1')]),
+      );
+      reservationServiceMock.getReservationsForUser$.and.returnValue(
+        throwError(() => new Error('offline')),
+      );
+
+      reload();
+
+      expect(component.orders().map((item) => item.orderId)).toEqual(['order-1']);
+    });
   });
 
   it('should navigate to reservations when goToReservations is called', () => {

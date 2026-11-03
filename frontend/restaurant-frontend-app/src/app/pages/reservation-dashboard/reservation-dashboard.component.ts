@@ -22,6 +22,8 @@ import {
 import { AuthenticationService } from '@app/auth/services/authentication.service';
 import { CardReservationComponent } from '@app/components/reservations/card-reservation/card-reservation.component';
 import { GroupPreOrderModalComponent } from '@app/components/group-orders/group-pre-order-modal/group-pre-order-modal.component';
+import { InviteGuestsModalComponent } from '@app/components/reservations/invite-guests-modal/invite-guests-modal.component';
+import { PreOrderViewModalComponent } from '@app/components/reservations/pre-order-view-modal/pre-order-view-modal.component';
 import { FeedbackWindowComponent } from '@app/components/reservations/feedback-window/feedback-window.component';
 import { ReservationConfirmedComponent } from '@app/components/reservations/reservation-confirmed/reservation-confirmed.component';
 import { MakeReservationComponent } from '@app/components/tables/make-reservation/make-reservation.component';
@@ -61,6 +63,8 @@ interface ReservationStatusView {
     ReservationConfirmedComponent,
     FeedbackWindowComponent,
     GroupPreOrderModalComponent,
+    InviteGuestsModalComponent,
+    PreOrderViewModalComponent,
   ],
   templateUrl: './reservation-dashboard.component.html',
   styleUrl: './reservation-dashboard.component.scss',
@@ -100,12 +104,23 @@ export class ReservationDashboardComponent implements OnInit {
   readonly showEditReservationConfirmed = signal(false);
   readonly showFeedbackModal = signal(false);
 
+  readonly inviteReservation = signal<ReservationCustomer | null>(null);
+  readonly preOrderViewReservation = signal<ReservationCustomer | null>(null);
+
   // ?groupOrder=<reservationId> opens the group pre-order over the list, so the basket and the
   // reservation card can both link to it.
   readonly groupOrderReservationId = toSignal(
     this.route.queryParamMap.pipe(map((params) => params.get('groupOrder'))),
     { initialValue: null },
   );
+
+  // The modal opens once the bookings are loaded: its header comes from the booking.
+  readonly groupOrderReservation = computed(() => {
+    const reservationId = this.groupOrderReservationId();
+    return reservationId
+      ? this.reservations().find((reservation) => reservation.id === reservationId) ?? null
+      : null;
+  });
 
   readonly statusEnum: Record<number, ReservationStatusView> = {
     [ReservationStatusCustomer.Reserved]: {

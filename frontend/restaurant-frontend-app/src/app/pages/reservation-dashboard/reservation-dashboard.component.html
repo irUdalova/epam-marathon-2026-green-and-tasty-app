@@ -22,6 +22,9 @@
         (editReservation)="openEditModal($event)"
         (leaveFeedbackReservation)="openFeedback($event)"
         (updateFeedbackReservation)="openFeedback($event)"
+        (groupPreOrder)="openGroupOrder($event)"
+        (inviteGuests)="inviteReservation.set($event)"
+        (viewPreOrder)="preOrderViewReservation.set($event)"
       />
     }
   </ul>
@@ -93,9 +96,23 @@
   />
 }
 
-@if (groupOrderReservationId(); as reservationId) {
+@if (groupOrderReservation(); as reservation) {
   <app-group-pre-order-modal
-    [reservationId]="reservationId"
+    [reservation]="reservation"
     (closed)="closeGroupOrder()"
+  />
+}
+
+@if (preOrderViewReservation(); as reservation) {
+  <app-pre-order-view-modal
+    [reservation]="reservation"
+    (closed)="preOrderViewReservation.set(null)"
+  />
+}
+
+@if (inviteReservation(); as reservation) {
+  <app-invite-guests-modal
+    [reservation]="reservation"
+    (closed)="inviteReservation.set(null)"
   />
 }

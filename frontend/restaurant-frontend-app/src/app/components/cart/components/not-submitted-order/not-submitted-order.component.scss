@@ -68,6 +68,19 @@
   gap: 8px;
 }
 
+// The same outlined stepper as the Group Pre-Order card.
+.quantity-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.value {
+  min-width: 16px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 24px;
+}
 
 .total {
   display: flex;
@@ -97,4 +110,10 @@
   line-height: 16px;
   letter-spacing: 0;
   vertical-align: middle;
+}
+
+// Address on the first line, date and time below; the order id means nothing to the customer.
+.order-title {
+  display: flex;
+  flex-direction: column;
 }

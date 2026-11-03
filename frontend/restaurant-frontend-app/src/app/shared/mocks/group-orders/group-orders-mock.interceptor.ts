@@ -45,7 +45,7 @@ export const groupOrdersMockInterceptor: HttpInterceptorFn = (req, next) => {
     return respond(() => ({ ...DEMO_INVITE, MaxGuestCount: store.maxCapacity }));
   }
   if (req.method === 'GET' && path.endsWith(`/reservations/${DEMO_RESERVATION_ID}/guest-session-id`)) {
-    return respond(() => ({ guestSessionId: DEMO_OWNER_SESSION_ID }));
+    return respond(() => ({ guestSessionId: DEMO_OWNER_SESSION_ID, groupReservationId: DEMO_GROUP_ID }));
   }
   if (req.method === 'GET' && path.endsWith(groupBase)) {
     return respond(() => store.snapshot());

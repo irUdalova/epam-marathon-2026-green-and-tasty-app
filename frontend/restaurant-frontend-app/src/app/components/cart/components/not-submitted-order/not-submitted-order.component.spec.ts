@@ -43,6 +43,15 @@ describe('NotSubmittedOrderComponent', () => {
     fixture.detectChanges();
   });
 
+  it('titles the order with the address and booking time, without the order id', () => {
+    const title = (fixture.nativeElement as HTMLElement).querySelector('.order-title')!;
+
+    expect(title.textContent).toContain('Test address');
+    expect(title.textContent).toContain('2026-09-07T12:15:00Z');
+    expect(title.textContent).not.toContain('order-1');
+    expect(title.textContent).not.toContain('Pre-order #');
+  });
+
   it('should create', () => {
     expect(component).toBeTruthy();
   });

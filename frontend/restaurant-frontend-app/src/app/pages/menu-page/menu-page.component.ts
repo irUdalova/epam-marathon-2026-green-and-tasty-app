@@ -145,9 +145,9 @@ export class MenuPageComponent implements OnInit {
         next: () => {
           this.toast.success('Dish added to cart successfully!', 'Success');
         },
-        error: (err) => {
-          this.toast.error((err as Error).message, 'Error');
-        },
+        // tokenInterceptor already shows the API's message; a second toast here only showed
+        // the generic "Http failure response …" text.
+        error: () => undefined,
       });
   }
 }

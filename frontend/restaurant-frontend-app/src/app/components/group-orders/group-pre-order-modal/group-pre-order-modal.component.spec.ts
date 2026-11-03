@@ -1,5 +1,6 @@
 // Рівень 2 · сторінка на даних з API. Сервіс підмінено шпигуном — у мережу тест не ходить.
-// Adapted: the screen is a modal over My Bookings, so reservationId is an input instead of a route param.
+// Adapted: the screen is a modal over My Bookings, so the booking is an input instead of a route param,
+// and the group id comes from the owner endpoint (getGroupReservationId$) instead of the guest invite.
 // Запуск: npm run test:hw
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -7,7 +8,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
-import { GuestInvite } from '@app/models/reservations/guest-invite.model';
+import { ReservationCustomer } from '@app/models/reservations/reservation.model';
 import { GroupPreOrderModalComponent } from './group-pre-order-modal.component';
 
 const caesar = { id: 'dish1', name: 'Caesar Salad', price: 180 };
@@ -21,13 +22,14 @@ const SESSIONS: GroupSessionsResponse = {
   ],
   total: 760,
 };
-const INVITE = {
-  GroupReservationId: 'grp-1',
-  LocationAddress: 'Rustaveli Avenue 48',
-  MaxGuestCount: 5,
-  StartTime: '2026-10-21T16:00:00Z',
-  EndTime: '2026-10-21T17:30:00Z',
-} as GuestInvite;
+// Far in the future, so the 30-minute pre-order cutoff does not lock the window.
+const RESERVATION = {
+  id: 'res-1',
+  locationAddress: 'Rustaveli Avenue 48',
+  guestCount: 5,
+  startTime: '2099-10-21T16:00:00Z',
+  endTime: '2099-10-21T17:30:00Z',
+} as unknown as ReservationCustomer;
 
 function buttonByText(root: ParentNode, text: string): HTMLButtonElement | undefined {
   return [...root.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLButtonElement | undefined;
@@ -45,16 +47,16 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       ],
     });
     const fixture = TestBed.createComponent(GroupPreOrderModalComponent);
-    fixture.componentRef.setInput('reservationId', 'res-1');
+    fixture.componentRef.setInput('reservation', RESERVATION);
     fixture.detectChanges();
     return { fixture, element: fixture.nativeElement as HTMLElement };
   }
 
   beforeEach(() => {
     service = jasmine.createSpyObj<GroupOrdersService>('GroupOrdersService', [
-      'getGroupInvite$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$', 'updateOwnerOrder$',
+      'getGroupReservationId$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$', 'updateOwnerOrder$',
     ]);
-    service.getGroupInvite$.and.returnValue(of(INVITE));
+    service.getGroupReservationId$.and.returnValue(of('grp-1'));
     service.getSessions$.and.returnValue(of(structuredClone(SESSIONS)));
     service.getOwnerSessionId$.and.returnValue(of('owner'));
     service.getStatus$.and.returnValue(of({ currentParticipants: 3, maxCapacity: 5, status: 'Open' as const }));
@@ -63,7 +65,7 @@ describe('Рівень 2 · сторінка Owner Review', () => {
   describe('дані', () => {
     it('бере reservationId з адреси і вантажить групу за GroupReservationId', () => {
       create();
-      expect(service.getGroupInvite$).toHaveBeenCalledWith('res-1');
+      expect(service.getGroupReservationId$).toHaveBeenCalledWith('res-1');
       expect(service.getSessions$.calls.mostRecent().args[0]).toBe('grp-1');
     });
 
@@ -100,16 +102,16 @@ describe('Рівень 2 · сторінка Owner Review', () => {
     });
 
     it('404: «Group reservation not found»', () => {
-      service.getGroupInvite$.and.returnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+      service.getGroupReservationId$.and.returnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
       expect(create().element.textContent).toContain('Group reservation not found');
     });
 
     it('інша помилка: кнопка «Try again» вантажить ще раз', () => {
-      service.getGroupInvite$.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      service.getGroupReservationId$.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
       const { fixture, element } = create();
       buttonByText(element, 'Try again')?.click();
       fixture.detectChanges();
-      expect(service.getGroupInvite$).toHaveBeenCalledTimes(2);
+      expect(service.getGroupReservationId$).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -218,11 +220,65 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       expect(create().element.querySelectorAll('[aria-label="Increase"]').length).toBe(1);
     });
 
-    it('після Submit редагувати не можна', () => {
+    it('після Submit редагувати не можна: картка Owner лише для перегляду', () => {
       service.getStatus$.and.returnValue(of({ currentParticipants: 3, maxCapacity: 5, status: 'Submitted' as const }));
-      const text = create().element;
-      expect(text.querySelector('[aria-label="Increase"]')).toBeNull();
-      expect(text.textContent).not.toContain('Edit my Pre-Order');
+      const element = create().element;
+      expect(element.querySelector('[aria-label="Increase"]')).toBeNull();
+      expect(element.querySelector('[aria-label="Remove Caesar Salad"]')).toBeNull();
+      expect(element.textContent).not.toContain('Edit my Pre-Order');
+    });
+  });
+
+  describe('within 30 minutes of the start, or after it', () => {
+    function createStarted() {
+      const created = create();
+      created.fixture.componentRef.setInput('reservation', {
+        ...RESERVATION,
+        startTime: new Date(Date.now() - 60 * 60_000).toISOString(),
+      });
+      created.fixture.detectChanges();
+      return created;
+    }
+
+    it('shows every participant\'s dishes and prices, so the bill can be split', () => {
+      const { element } = createStarted();
+      const cards = element.querySelectorAll('app-participant-card');
+      expect(cards.length).toBe(3);
+      expect(cards[1].textContent).toContain('Guest: Andrii');
+      expect(cards[1].textContent).toContain('× 2');
+      expect(cards[1].textContent).toContain('$360.00');
+    });
+
+    it('shows the owner\'s card like a guest\'s: quantity and price, no buttons', () => {
+      const { element } = createStarted();
+      const ownerCard = element.querySelector('app-participant-card')!;
+      expect(ownerCard.textContent).toContain('My Pre-Order');
+      expect(ownerCard.textContent).toContain('× 1');
+      expect(ownerCard.textContent).toContain('$180.00');
+      expect(ownerCard.querySelectorAll('button').length).toBe(0);
+      expect(element.textContent).not.toContain('Edit my Pre-Order');
+    });
+
+    it('has no Submit and saves nothing', () => {
+      const { fixture, element } = createStarted();
+      expect(buttonByText(element, 'Submit Pre-Order')).toBeUndefined();
+
+      fixture.componentInstance.changeOwnQuantity(SESSIONS.participants[0], { dishId: 'dish1', quantity: 2 });
+      fixture.componentInstance.removeOwnDish(SESSIONS.participants[0], 'dish1');
+
+      expect(service.updateOwnerOrder$).not.toHaveBeenCalled();
+    });
+
+    it('says why: the badge reads «Pre-order closed» and the note gives the 30-minute rule', () => {
+      const { element } = createStarted();
+      expect(element.querySelector('.status-badge')?.textContent?.trim()).toBe('Pre-order closed');
+      expect(element.textContent).toContain('Pre-orders close 30 minutes before the booking starts');
+    });
+
+    it('a submitted order keeps its «Sent to Restaurant» badge', () => {
+      service.getStatus$.and.returnValue(of({ currentParticipants: 3, maxCapacity: 5, status: 'Submitted' as const }));
+      const { element } = createStarted();
+      expect(element.querySelector('.status-badge')?.textContent?.trim()).toBe('Sent to Restaurant');
     });
   });
 

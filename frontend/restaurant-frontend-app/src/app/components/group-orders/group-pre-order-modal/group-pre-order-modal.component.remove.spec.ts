@@ -1,12 +1,13 @@
 // Бонус · Remove Guest — сторінка. Запуск: npm run test:hw
-// Adapted: the screen is a modal over My Bookings, so reservationId is an input instead of a route param.
+// Adapted: the screen is a modal over My Bookings, so the booking is an input instead of a route param,
+// and the group id comes from the owner endpoint (getGroupReservationId$) instead of the guest invite.
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
-import { GuestInvite } from '@app/models/reservations/guest-invite.model';
+import { ReservationCustomer } from '@app/models/reservations/reservation.model';
 import { GroupPreOrderModalComponent } from './group-pre-order-modal.component';
 
 const caesar = { id: 'dish1', name: 'Caesar Salad', price: 180 };
@@ -18,8 +19,14 @@ const SESSIONS: GroupSessionsResponse = {
   ],
   total: 720,
 };
-const INVITE = { GroupReservationId: 'grp-1', LocationAddress: 'Rustaveli Avenue 48', MaxGuestCount: 5,
-  StartTime: '2026-10-21T16:00:00Z', EndTime: '2026-10-21T17:30:00Z' } as GuestInvite;
+// Far in the future, so the 30-minute pre-order cutoff does not lock the window.
+const RESERVATION = {
+  id: 'res-1',
+  locationAddress: 'Rustaveli Avenue 48',
+  guestCount: 5,
+  startTime: '2099-10-21T16:00:00Z',
+  endTime: '2099-10-21T17:30:00Z',
+} as unknown as ReservationCustomer;
 
 function buttonByText(root: ParentNode, text: string): HTMLButtonElement | undefined {
   return [...root.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLButtonElement | undefined;
@@ -37,7 +44,7 @@ describe('Бонус · Remove Guest', () => {
       ],
     });
     const fixture = TestBed.createComponent(GroupPreOrderModalComponent);
-    fixture.componentRef.setInput('reservationId', 'res-1');
+    fixture.componentRef.setInput('reservation', RESERVATION);
     fixture.detectChanges();
     return { fixture, element: fixture.nativeElement as HTMLElement };
   }
@@ -48,9 +55,9 @@ describe('Бонус · Remove Guest', () => {
 
   beforeEach(() => {
     service = jasmine.createSpyObj<GroupOrdersService>('GroupOrdersService', [
-      'getGroupInvite$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$', 'removeSession$',
+      'getGroupReservationId$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$', 'removeSession$',
     ]);
-    service.getGroupInvite$.and.returnValue(of(INVITE));
+    service.getGroupReservationId$.and.returnValue(of('grp-1'));
     service.getSessions$.and.returnValue(of(structuredClone(SESSIONS)));
     service.getOwnerSessionId$.and.returnValue(of('owner'));
     service.getStatus$.and.returnValue(of({ currentParticipants: 3, maxCapacity: 5, status: 'Open' as const }));

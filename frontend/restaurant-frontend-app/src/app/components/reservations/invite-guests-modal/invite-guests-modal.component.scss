@@ -1,0 +1,23 @@
+@use 'app/shared/styles/abstracts/colors' as color;
+
+.summary,
+.text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.summary {
+  font-weight: 500;
+  color: color.$neutral-900;
+}
+
+.text {
+  color: color.$neutral-700;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}

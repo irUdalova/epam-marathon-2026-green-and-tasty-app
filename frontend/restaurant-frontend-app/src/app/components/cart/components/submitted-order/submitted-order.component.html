@@ -1,9 +1,9 @@
 <div class="submitted-order-item">
   <div class="text">
-    <span class="body-bold">
-      Pre-order #{{ order().orderId }}
-      ({{ order().reservationAddress }}, {{ order().reservationTime }})
-    </span>
+    <div class="order-title">
+      <span class="body-bold">{{ order().reservationAddress }}</span>
+      <span class="body">{{ order().reservationTime }}</span>
+    </div>
 
     @for (item of order().orderItems; track item.dish.id) {
     <div class="order-item">
