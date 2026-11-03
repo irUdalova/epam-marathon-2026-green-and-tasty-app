@@ -1,5 +1,5 @@
 import { CurrencyPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { Participant } from '@app/models/group-orders/participant.model';
 
 @Component({
@@ -13,6 +13,13 @@ export class ParticipantCardComponent {
   readonly participant = input.required<Participant>();
   /** The signed-in owner's own card is titled "My Pre-Order". */
   readonly isOwn = input(false);
+  /** Shows the trash and −/+ controls; only the owner's own order can be edited. */
+  readonly editable = input(false);
+  /** Disables the controls while a change is being saved. */
+  readonly busy = input(false);
+
+  readonly quantityChange = output<{ dishId: string; quantity: number }>();
+  readonly dishRemove = output<string>();
 
   readonly title = computed(() => {
     const person = this.participant();

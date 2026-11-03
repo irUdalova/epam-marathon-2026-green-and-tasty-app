@@ -18,6 +18,12 @@ export interface GroupRequestOptions {
   silent?: boolean;
 }
 
+/** One line of the owner's order, as PUT /orders/{reservationId} expects it. */
+export interface OwnerOrderItem {
+  dishId: string;
+  quantity: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -60,6 +66,18 @@ export class GroupOrdersService {
       `${this.baseUrl}/group-reservations/${encodeURIComponent(groupId)}/submit`,
       body,
     );
+  }
+
+  /** Fallback when no guest has submitted: the group submit would return 400, so only the owner's order goes. */
+  submitOwnerOrder$(reservationId: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/orders/${encodeURIComponent(reservationId)}/submit`, {});
+  }
+
+  /** The owner's dishes are the reservation's order; the basket edits it the same way. */
+  updateOwnerOrder$(reservationId: string, orderItems: OwnerOrderItem[]): Observable<unknown> {
+    const url = `${this.baseUrl}/orders/${encodeURIComponent(reservationId)}`;
+    // Removing the last dish cancels the order, the same way the basket does.
+    return orderItems.length ? this.http.put(url, { orderItems }) : this.http.delete(url);
   }
 
   removeSession$(groupId: string, guestSessionId: string): Observable<GroupSessionsResponse> {

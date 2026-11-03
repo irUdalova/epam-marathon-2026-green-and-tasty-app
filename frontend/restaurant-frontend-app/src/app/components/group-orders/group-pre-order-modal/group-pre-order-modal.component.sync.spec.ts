@@ -1,14 +1,14 @@
 // Рівень 3 · синхронізація з бекендом: кожні 15 с, поки група Open.
+// Adapted: the screen is a modal over My Bookings, so reservationId is an input instead of a route param.
 // fakeAsync + tick(15_000) «прокручує» час без очікування. Запуск: npm run test:hw
 import { TestBed, discardPeriodicTasks, fakeAsync, tick } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
 import { GuestInvite } from '@app/models/reservations/guest-invite.model';
-import { GroupOrderPageComponent } from './group-order-page.component';
+import { GroupPreOrderModalComponent } from './group-pre-order-modal.component';
 
 const SYNC_MS = 15_000;
 const caesar = { id: 'dish1', name: 'Caesar Salad', price: 180 };
@@ -32,14 +32,14 @@ describe('Рівень 3 · синхронізація', () => {
 
   function create() {
     TestBed.configureTestingModule({
-      imports: [GroupOrderPageComponent],
+      imports: [GroupPreOrderModalComponent],
       providers: [
         { provide: GroupOrdersService, useValue: service },
         { provide: ToastService, useValue: jasmine.createSpyObj('ToastService', ['success', 'error', 'info']) },
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ reservationId: 'res-1' }) } } },
       ],
     });
-    const fixture = TestBed.createComponent(GroupOrderPageComponent);
+    const fixture = TestBed.createComponent(GroupPreOrderModalComponent);
+    fixture.componentRef.setInput('reservationId', 'res-1');
     fixture.detectChanges();
     return { fixture, element: fixture.nativeElement as HTMLElement };
   }

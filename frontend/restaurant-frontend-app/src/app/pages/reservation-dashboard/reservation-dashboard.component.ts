@@ -8,8 +8,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   catchError,
   finalize,
@@ -21,6 +21,7 @@ import {
 
 import { AuthenticationService } from '@app/auth/services/authentication.service';
 import { CardReservationComponent } from '@app/components/reservations/card-reservation/card-reservation.component';
+import { GroupPreOrderModalComponent } from '@app/components/group-orders/group-pre-order-modal/group-pre-order-modal.component';
 import { FeedbackWindowComponent } from '@app/components/reservations/feedback-window/feedback-window.component';
 import { ReservationConfirmedComponent } from '@app/components/reservations/reservation-confirmed/reservation-confirmed.component';
 import { MakeReservationComponent } from '@app/components/tables/make-reservation/make-reservation.component';
@@ -59,6 +60,7 @@ interface ReservationStatusView {
     MakeReservationComponent,
     ReservationConfirmedComponent,
     FeedbackWindowComponent,
+    GroupPreOrderModalComponent,
   ],
   templateUrl: './reservation-dashboard.component.html',
   styleUrl: './reservation-dashboard.component.scss',
@@ -75,6 +77,7 @@ export class ReservationDashboardComponent implements OnInit {
   private readonly locationsService = inject(LocationsService);
   private readonly ordersService = inject(PreOrdersService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly Roles = Roles;
@@ -96,6 +99,13 @@ export class ReservationDashboardComponent implements OnInit {
   readonly showEditReservationModal = signal(false);
   readonly showEditReservationConfirmed = signal(false);
   readonly showFeedbackModal = signal(false);
+
+  // ?groupOrder=<reservationId> opens the group pre-order over the list, so the basket and the
+  // reservation card can both link to it.
+  readonly groupOrderReservationId = toSignal(
+    this.route.queryParamMap.pipe(map((params) => params.get('groupOrder'))),
+    { initialValue: null },
+  );
 
   readonly statusEnum: Record<number, ReservationStatusView> = {
     [ReservationStatusCustomer.Reserved]: {
@@ -556,5 +566,21 @@ export class ReservationDashboardComponent implements OnInit {
   ): number {
     const match = tableName?.match(/\d+/);
     return match ? Number(match[0]) : 0;
+  }
+
+  openGroupOrder(reservationId: string): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { groupOrder: reservationId },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  closeGroupOrder(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { groupOrder: null },
+      queryParamsHandling: 'merge',
+    });
   }
 }

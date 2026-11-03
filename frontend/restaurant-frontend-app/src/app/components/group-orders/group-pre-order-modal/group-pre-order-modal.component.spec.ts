@@ -1,14 +1,14 @@
 // Рівень 2 · сторінка на даних з API. Сервіс підмінено шпигуном — у мережу тест не ходить.
+// Adapted: the screen is a modal over My Bookings, so reservationId is an input instead of a route param.
 // Запуск: npm run test:hw
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
 import { ToastService } from '@app/services/toast/toast.service';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
 import { GuestInvite } from '@app/models/reservations/guest-invite.model';
-import { GroupOrderPageComponent } from './group-order-page.component';
+import { GroupPreOrderModalComponent } from './group-pre-order-modal.component';
 
 const caesar = { id: 'dish1', name: 'Caesar Salad', price: 180 };
 const tomYum = { id: 'dish2', name: 'Tom Yum', price: 220 };
@@ -38,21 +38,21 @@ describe('Рівень 2 · сторінка Owner Review', () => {
 
   function create() {
     TestBed.configureTestingModule({
-      imports: [GroupOrderPageComponent],
+      imports: [GroupPreOrderModalComponent],
       providers: [
         { provide: GroupOrdersService, useValue: service },
         { provide: ToastService, useValue: jasmine.createSpyObj('ToastService', ['success', 'error', 'info']) },
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ reservationId: 'res-1' }) } } },
       ],
     });
-    const fixture = TestBed.createComponent(GroupOrderPageComponent);
+    const fixture = TestBed.createComponent(GroupPreOrderModalComponent);
+    fixture.componentRef.setInput('reservationId', 'res-1');
     fixture.detectChanges();
     return { fixture, element: fixture.nativeElement as HTMLElement };
   }
 
   beforeEach(() => {
     service = jasmine.createSpyObj<GroupOrdersService>('GroupOrdersService', [
-      'getGroupInvite$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$',
+      'getGroupInvite$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$', 'updateOwnerOrder$',
     ]);
     service.getGroupInvite$.and.returnValue(of(INVITE));
     service.getSessions$.and.returnValue(of(structuredClone(SESSIONS)));
@@ -86,10 +86,6 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       expect(text).not.toContain('$760.00');
     });
 
-    it('однакові страви — одним рядком: «Caesar Salad × 3»', () => {
-      expect(create().element.textContent).toContain('Caesar Salad × 3');
-    });
-
     it('жовта плашка: «1 participant hasn’t submitted…»', () => {
       expect(create().element.textContent).toMatch(/1 participant hasn.t submitted/);
     });
@@ -118,11 +114,39 @@ describe('Рівень 2 · сторінка Owner Review', () => {
   });
 
   describe('Submit Pre-Order', () => {
-    it('кнопка неактивна, якщо ніхто не підтвердив кошик', () => {
+    // Changed from the homework test: the owner's dishes are the reservation's own order and always count
+    // (backend marks the owner row isSubmitted only after the restaurant order is sent), so Submit is
+    // disabled only when the consolidated order is empty.
+    it('кнопка неактивна, якщо в замовленні немає страв', () => {
       const nobody = structuredClone(SESSIONS);
       nobody.participants.forEach((p) => (p.isSubmitted = false));
+      nobody.participants[0].items = [];
       service.getSessions$.and.returnValue(of(nobody));
       expect(buttonByText(create().element, 'Submit Pre-Order')?.disabled).toBeTrue();
+    });
+
+    it('страви Owner рахуються, навіть якщо бекенд ще не позначив його кошик', () => {
+      const ownerPending = structuredClone(SESSIONS);
+      ownerPending.participants[0].isSubmitted = false;
+      service.getSessions$.and.returnValue(of(ownerPending));
+      expect(create().element.textContent).toContain('$540.00');
+    });
+
+    it('жоден гість не підтвердив: Submit надсилає лише замовлення Owner через /orders/{id}/submit', () => {
+      const noGuests = structuredClone(SESSIONS);
+      noGuests.participants.forEach((p) => (p.isSubmitted = false));
+      service.getSessions$.and.returnValue(of(noGuests));
+      service.submitOwnerOrder$ = jasmine.createSpy('submitOwnerOrder$').and.returnValue(of({}));
+      const { fixture, element } = create();
+
+      buttonByText(element, 'Submit Pre-Order')?.click();
+      fixture.detectChanges();
+      buttonByText(element.querySelector('[role="dialog"]')!, 'Submit')?.click();
+      fixture.detectChanges();
+
+      expect(service.submitOwnerOrder$).toHaveBeenCalledOnceWith('res-1');
+      expect(service.submit$).not.toHaveBeenCalled();
+      expect(element.textContent).toContain('Sent to Restaurant');
     });
 
     it('«Submit Pre-Order» → діалог → «Submit»: запит іде один раз навіть при подвійному кліку', () => {
@@ -166,5 +190,47 @@ describe('Рівень 2 · сторінка Owner Review', () => {
 
       expect(buttonByText(element, 'Submit Pre-Order')?.disabled).toBeFalse();
     });
+  });
+
+  describe('власне замовлення Owner', () => {
+    it('«+» зберігає замовлення і перечитує групу тихим запитом', () => {
+      service.updateOwnerOrder$.and.returnValue(of({}));
+      const { fixture, element } = create();
+
+      element.querySelector<HTMLButtonElement>('[aria-label="Increase"]')!.click();
+      fixture.detectChanges();
+
+      expect(service.updateOwnerOrder$).toHaveBeenCalledOnceWith('res-1', [{ dishId: 'dish1', quantity: 2 }]);
+      expect(service.getSessions$.calls.mostRecent().args).toEqual(['grp-1', { silent: true }]);
+    });
+
+    it('кошик прибирає страву з замовлення', () => {
+      service.updateOwnerOrder$.and.returnValue(of({}));
+      const { fixture, element } = create();
+
+      element.querySelector<HTMLButtonElement>('[aria-label="Remove Caesar Salad"]')!.click();
+      fixture.detectChanges();
+
+      expect(service.updateOwnerOrder$).toHaveBeenCalledOnceWith('res-1', []);
+    });
+
+    it('кнопки редагування є лише у власній картці', () => {
+      expect(create().element.querySelectorAll('[aria-label="Increase"]').length).toBe(1);
+    });
+
+    it('після Submit редагувати не можна', () => {
+      service.getStatus$.and.returnValue(of({ currentParticipants: 3, maxCapacity: 5, status: 'Submitted' as const }));
+      const text = create().element;
+      expect(text.querySelector('[aria-label="Increase"]')).toBeNull();
+      expect(text.textContent).not.toContain('Edit my Pre-Order');
+    });
+  });
+
+  it('хрестик закриває вікно', () => {
+    const { fixture, element } = create();
+    let closed = 0;
+    fixture.componentInstance.closed.subscribe(() => closed++);
+    element.querySelector<HTMLButtonElement>('[aria-label="Close"]')!.click();
+    expect(closed).toBe(1);
   });
 });

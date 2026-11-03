@@ -62,4 +62,26 @@ describe('Рівень 2 · GroupOrdersService', () => {
     expect(req.request.body).toEqual({ reservationId: 'res-1' });
     req.flush([]);
   });
+
+  it('submitOwnerOrder$: POST /orders/{reservationId}/submit', () => {
+    service.submitOwnerOrder$('res-1').subscribe();
+    const req = http.expectOne(`${BASE_URL}/orders/res-1/submit`);
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+  });
+
+  it('updateOwnerOrder$: PUT /orders/{reservationId} з тілом { orderItems }', () => {
+    service.updateOwnerOrder$('res-1', [{ dishId: 'dish1', quantity: 2 }]).subscribe();
+    const req = http.expectOne(`${BASE_URL}/orders/res-1`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ orderItems: [{ dishId: 'dish1', quantity: 2 }] });
+    req.flush({});
+  });
+
+  it('updateOwnerOrder$: без страв — DELETE /orders/{reservationId}', () => {
+    service.updateOwnerOrder$('res-1', []).subscribe();
+    const req = http.expectOne(`${BASE_URL}/orders/res-1`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush({});
+  });
 });

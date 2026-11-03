@@ -92,3 +92,10 @@
     (closedFeedback)="closeFeedback()"
   />
 }
+
+@if (groupOrderReservationId(); as reservationId) {
+  <app-group-pre-order-modal
+    [reservationId]="reservationId"
+    (closed)="closeGroupOrder()"
+  />
+}

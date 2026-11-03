@@ -1,0 +1,131 @@
+<!-- neutral-100: the design puts white participant cards on a light-grey window. -->
+<app-modal width="840px" background="#f7f7f7" (closed)="close()">
+  <header class="group-header">
+    <div class="heading">
+      <h1 class="title">Group Pre-Order</h1>
+      @if (state() === 'ready') {
+        <span class="status-badge" [class.sent]="isLocked()">{{ statusLabel() }}</span>
+      }
+    </div>
+
+    @if (invite(); as invite) {
+      <ul class="meta">
+        <li>
+          <img src="assets/svg/location-green.svg" alt="" width="16" height="16" />
+          <span class="visually-hidden">Address:</span> {{ invite.LocationAddress }}
+        </li>
+        <li>
+          <img src="assets/svg/calendar-green.svg" alt="" width="16" height="16" />
+          <span class="visually-hidden">Date:</span> {{ invite.StartTime | date: 'MMM d, y' }}
+        </li>
+        <li>
+          <img src="assets/svg/clock-green.svg" alt="" width="16" height="16" />
+          <span class="visually-hidden">Time:</span>
+          {{ invite.StartTime | date: 'HH:mm' }} – {{ invite.EndTime | date: 'HH:mm' }}
+        </li>
+        @if (state() === 'ready') {
+          <li>
+            <img src="assets/svg/people-green.svg" alt="" width="16" height="16" />
+            {{ participants().length }} of {{ invite.MaxGuestCount }} guests
+          </li>
+        }
+      </ul>
+    }
+  </header>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="state-message" role="status">Loading the group pre-order…</p>
+    }
+
+    @case ('not-found') {
+      <div class="state-message">
+        <p>Group reservation not found</p>
+        <button type="button" class="button button--secondary button--large" (click)="closed.emit()">Close</button>
+      </div>
+    }
+
+    @case ('error') {
+      <div class="state-message" role="alert">
+        <p>Couldn’t load the group pre-order.</p>
+        <button type="button" class="button button--secondary button--large" (click)="load()">Try again</button>
+      </div>
+    }
+
+    @case ('ready') {
+      @if (!isLocked() && pendingGuests() > 0) {
+        <p class="pending-banner" role="status">
+          <img src="assets/svg/bell-regular.svg" alt="" width="20" height="20" />
+          {{ pendingMessage() }}
+        </p>
+      }
+
+      @if (!hasDishes()) {
+        <p class="state-message">Participants haven’t added any dishes yet</p>
+      }
+
+      <ul class="participants">
+        @for (person of participants(); track person.id ?? $index) {
+          <li>
+            <app-participant-card
+              [participant]="person"
+              [isOwn]="isOwner(person)"
+              [editable]="isOwner(person) && !isLocked()"
+              [busy]="savingOwnOrder()"
+              (quantityChange)="changeOwnQuantity(person, $event)"
+              (dishRemove)="removeOwnDish(person, $event)"
+            >
+              @if (isOwner(person) && !isLocked()) {
+                <button card-actions type="button" class="button button--tertiary button--small" (click)="editMyPreOrder()">
+                  Edit my Pre-Order
+                </button>
+              }
+            </app-participant-card>
+          </li>
+        }
+      </ul>
+
+      <footer class="summary">
+        <p class="grand-total">
+          <span>Grand Total</span>
+          <span class="amount">{{ consolidated().total | currency }}</span>
+        </p>
+
+        @if (isLocked()) {
+          <p class="sent-note">This pre-order has been sent to the restaurant. It can no longer be changed here.</p>
+        } @else {
+          <button
+            type="button"
+            class="button button--primary button--extra-large button--full-width"
+            [disabled]="!canSubmit()"
+            (click)="openConfirm()"
+          >
+            Submit Pre-Order
+          </button>
+        }
+      </footer>
+    }
+  }
+
+  @if (confirmOpen()) {
+    <app-modal title="Submit Pre-Order" (closed)="closeConfirm()">
+      <p class="confirm-text">
+        Send the order for {{ consolidated().total | currency }} to the restaurant?
+        @if (hasSubmittedGuests()) {
+          Guests won’t be able to change their carts after that.
+        } @else {
+          No guest has submitted a cart yet, so only your dishes will be sent.
+        }
+      </p>
+      <div modal-actions class="confirm-actions">
+        <button type="button" class="button button--tertiary button--large" [disabled]="submitting()" (click)="closeConfirm()">
+          Cancel
+        </button>
+        <button type="button" class="button button--primary button--large" [disabled]="submitting()" (click)="submit()">
+          {{ submitting() ? 'Submitting…' : 'Submit' }}
+        </button>
+      </div>
+    </app-modal>
+  }
+</app-modal>
+
