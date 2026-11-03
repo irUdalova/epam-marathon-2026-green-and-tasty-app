@@ -724,6 +724,10 @@ components:
           type: string
           description: The guest session ID of the reservation owner
           example: session-owner-123
+        groupReservationId:
+          type: string
+          description: The group reservation ID, used by the owner for the group endpoints
+          example: group-456
 
     DishResponse:
       type: object

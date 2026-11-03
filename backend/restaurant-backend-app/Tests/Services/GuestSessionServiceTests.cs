@@ -1058,6 +1058,7 @@ public class GuestSessionServiceTests
         var result = await _guestSessionService.GetOwnerGuestSessionIdAsync(ownerId, reservation.Id);
 
         Assert.Equal(owner.Id, result.GuestSessionId);
+        Assert.Equal(groupReservation.GroupReservationId, result.GroupReservationId);
         _mockGuestSessionRepository.Verify(r => r.SaveAsync(It.IsAny<GuestSession>()), Times.Never);
     }
 
@@ -1078,6 +1079,7 @@ public class GuestSessionServiceTests
 
         Assert.NotNull(saved);
         Assert.Equal(saved.Id, result.GuestSessionId);
+        Assert.Equal(groupReservation.GroupReservationId, result.GroupReservationId);
         Assert.True(saved.IsOwnerSession);
         Assert.Equal(ownerId, saved.OwnerUserId);
         Assert.Equal(groupReservation.GroupReservationId, saved.GroupReservationId);

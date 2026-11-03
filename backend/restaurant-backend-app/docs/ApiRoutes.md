@@ -558,7 +558,8 @@ Response: `200 OK`
 Response: `200 OK`
 ```json
 {
-  "guestSessionId": "string"
+  "guestSessionId": "string",
+  "groupReservationId": "string"
 }
 ```
 
@@ -1190,12 +1191,18 @@ Returns the id of the owner's own session in the group pre-order of this reserva
 The session is created on the first request (`isOwnerSession: true`, no dishes) and the same id is
 returned afterwards.
 
+> **Updated (2026-11-03).** The response also carries `groupReservationId`, so the owner can call the
+> `/guest/groups/{groupReservationId}/...` and `/group-reservations/{groupReservationId}/submit` endpoints.
+> Before this, the only source of that id was `GET /guest/invites/{token}`, which refuses once the group is
+> full (`Guest limit exceeded`) or no longer open.
+
 Auth: Cognito (`Authorization: Bearer <idToken>`). Only the owner of the reservation may call it.
 
 Response: `200 OK`
 ```json
 {
-  "guestSessionId": "owner-session-123"
+  "guestSessionId": "owner-session-123",
+  "groupReservationId": "group-456"
 }
 ```
 

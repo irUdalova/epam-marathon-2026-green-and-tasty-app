@@ -405,7 +405,7 @@ public class GuestSessionService(
         var ownerSession = sessions.FirstOrDefault(s => s.IsOwnerSession)
             ?? await CreateGroupOwnerSessionAsync(userId, group.GroupReservationId);
 
-        return new OwnerGuestSessionIdResponse(ownerSession.Id);
+        return new OwnerGuestSessionIdResponse(ownerSession.Id, group.GroupReservationId);
     }
 
     public async Task<List<ConsolidatedDishResponse>> SubmitGroupPreOrderAsync(string userId, string groupReservationId, string reservationId)
