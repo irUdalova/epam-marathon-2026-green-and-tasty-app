@@ -17,9 +17,12 @@ export class ParticipantCardComponent {
   readonly editable = input(false);
   /** Disables the controls while a change is being saved. */
   readonly busy = input(false);
+  /** Shows "Remove Guest": the owner can take a guest out of an open group pre-order. */
+  readonly canRemove = input(false);
 
   readonly quantityChange = output<{ dishId: string; quantity: number }>();
   readonly dishRemove = output<string>();
+  readonly removeClick = output<Participant>();
 
   readonly title = computed(() => {
     const person = this.participant();

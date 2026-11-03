@@ -265,6 +265,36 @@ describe('Рівень 2 · сторінка Owner Review', () => {
     });
   });
 
+  describe('Remove Guest', () => {
+    it('Cancel closes the confirmation without removing anyone', () => {
+      service.removeSession$ = jasmine.createSpy('removeSession$');
+      const { fixture, element } = create();
+      element.querySelector<HTMLButtonElement>('[aria-label="Remove Andrii"]')!.click();
+      fixture.detectChanges();
+
+      buttonByText(element, 'Cancel')!.click();
+      fixture.detectChanges();
+
+      expect(element.textContent).not.toContain('Are you sure you want to remove');
+      expect(service.removeSession$).not.toHaveBeenCalled();
+      expect(element.querySelectorAll('app-participant-card').length).toBe(3);
+    });
+
+    it('Escape closes only the confirmation, not the whole window', () => {
+      const { fixture, element } = create();
+      let closed = 0;
+      fixture.componentInstance.closed.subscribe(() => closed++);
+      element.querySelector<HTMLButtonElement>('[aria-label="Remove Andrii"]')!.click();
+      fixture.detectChanges();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+
+      expect(element.textContent).not.toContain('Are you sure you want to remove');
+      expect(closed).toBe(0);
+    });
+  });
+
   describe('within 30 minutes of the start, or after it', () => {
     function createStarted() {
       const created = create();
@@ -293,6 +323,11 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       expect(ownerCard.textContent).toContain('$180.00');
       expect(ownerCard.querySelectorAll('button').length).toBe(0);
       expect(element.textContent).not.toContain('Edit my Pre-Order');
+    });
+
+    it('has no «Remove Guest»', () => {
+      const { element } = createStarted();
+      expect(element.querySelector('[aria-label="Remove Andrii"]')).toBeNull();
     });
 
     it('has no Submit and saves nothing', () => {

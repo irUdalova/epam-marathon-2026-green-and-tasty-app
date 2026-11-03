@@ -167,3 +167,19 @@
     padding-bottom: 24px;
   }
 }
+
+// The design's red outline for a destructive confirm.
+.remove-confirm {
+  color: color.$red-400;
+  border-color: color.$red-400;
+
+  &:hover:not(:disabled) {
+    background-color: color.$red-30;
+  }
+
+  &:active:not(:disabled) {
+    color: color.$neutral-0;
+    background-color: color.$red-400;
+    border-color: color.$red-400;
+  }
+}

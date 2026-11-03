@@ -64,6 +64,10 @@ export class GroupPreOrderModalComponent implements OnInit {
   readonly submitting = signal(false);
   readonly savingOwnOrder = signal(false);
 
+  // The guest the owner is about to remove; non-null while the confirmation is open.
+  readonly removeTarget = signal<Participant | null>(null);
+  readonly removing = signal(false);
+
   readonly reservationId = computed(() => this.reservation().id);
 
   readonly participants = computed(() => this.sessions()?.participants ?? []);
@@ -148,7 +152,11 @@ export class GroupPreOrderModalComponent implements OnInit {
   }
 
   close(): void {
-    // Escape reaches both dialogs; the confirmation closes first.
+    // Escape reaches every open dialog; a confirmation closes first.
+    if (this.removeTarget()) {
+      this.closeRemove();
+      return;
+    }
     if (this.confirmOpen()) {
       this.closeConfirm();
       return;
@@ -215,6 +223,50 @@ export class GroupPreOrderModalComponent implements OnInit {
           this.closed.emit();
         },
         // tokenInterceptor already shows the API error in a toast.
+        error: () => undefined,
+      });
+  }
+
+  canRemove(person: Participant): boolean {
+    return !this.isOwner(person) && !this.isLocked();
+  }
+
+  openRemove(person: Participant): void {
+    if (this.canRemove(person)) {
+      this.removeTarget.set(person);
+    }
+  }
+
+  closeRemove(): void {
+    if (!this.removing()) {
+      this.removeTarget.set(null);
+    }
+  }
+
+  // DELETE returns the group as GET /sessions does, so the cards and totals update from it.
+  confirmRemove(): void {
+    const groupId = this.groupId();
+    const person = this.removeTarget();
+    if (!groupId || !person || this.removing()) {
+      return;
+    }
+
+    this.removing.set(true);
+    this.groupOrdersService
+      .removeSession$(groupId, person.id)
+      .pipe(
+        finalize(() => {
+          this.removing.set(false);
+          this.removeTarget.set(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (sessions) => {
+          this.sessions.set(sessions);
+          this.toastService.success(`${person.name} was removed from the group pre-order`);
+        },
+        // tokenInterceptor already shows the API error in a toast; the list stays as it was.
         error: () => undefined,
       });
   }

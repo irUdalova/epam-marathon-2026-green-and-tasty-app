@@ -126,4 +126,30 @@ describe('Практичне · картка учасника', () => {
       expect(buttons.every((button) => button.disabled)).toBeTrue();
     });
   });
+
+  describe('Remove Guest', () => {
+    function renderRemovable(canRemove: boolean) {
+      const fixture = TestBed.createComponent(ParticipantCardComponent);
+      fixture.componentRef.setInput('participant', OLENA);
+      fixture.componentRef.setInput('canRemove', canRemove);
+      fixture.detectChanges();
+      return { component: fixture.componentInstance, element: fixture.nativeElement as HTMLElement };
+    }
+
+    it('no «Remove Guest» unless canRemove', () => {
+      expect(renderRemovable(false).element.querySelector('[aria-label="Remove Olena"]')).toBeNull();
+    });
+
+    it('the click emits the participant', () => {
+      const { component, element } = renderRemovable(true);
+      const removed: Participant[] = [];
+      component.removeClick.subscribe((person) => removed.push(person));
+
+      const button = element.querySelector<HTMLButtonElement>('[aria-label="Remove Olena"]')!;
+      expect(button.textContent?.trim()).toBe('Remove Guest');
+      button.click();
+
+      expect(removed).toEqual([OLENA]);
+    });
+  });
 });
