@@ -182,10 +182,7 @@ export class CartComponent implements OnInit {
     // Sending it from here would leave the guests' dishes out, so the owner reviews and
     // submits the whole group order in the Group Pre-Order window instead.
     if (this.groupReservationIds().has(order.reservationId)) {
-      this.closeCart();
-      void this.router.navigate(['/reservations'], {
-        queryParams: { groupOrder: order.reservationId },
-      });
+      this.openGroupPreOrder(order.reservationId);
       return;
     }
 
@@ -207,6 +204,13 @@ export class CartComponent implements OnInit {
   }
 
   // Without the pre-order params the menu shows no Pre-Order buttons.
+  openGroupPreOrder(reservationId: string): void {
+    this.closeCart();
+    void this.router.navigate(['/reservations'], {
+      queryParams: { groupOrder: reservationId },
+    });
+  }
+
   addDishToOrder(orderId: string): void {
     const order = this.findOrder(orderId);
 

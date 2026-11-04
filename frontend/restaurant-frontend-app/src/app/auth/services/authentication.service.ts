@@ -212,6 +212,10 @@ export class AuthenticationService {
       });
     });
   }
+  /** True while a login is saved, even an expired one (getTokens() then signs out). */
+  hasStoredLogin(): boolean {
+    return localStorage.getItem('auth') !== null;
+  }
   getTokens(): Tokens | null {
     const authStr = localStorage.getItem('auth');
     const auth = authStr ? JSON.parse(authStr) : null;

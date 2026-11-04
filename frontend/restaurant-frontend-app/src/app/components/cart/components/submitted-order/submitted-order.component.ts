@@ -19,9 +19,12 @@ import { Order } from '@app/models/orders/order.model';
 })
 export class SubmittedOrderComponent {
   readonly order = input.required<Order>();
+  /** A sent group order also holds the guests' dishes and is final; it can only be viewed. */
+  readonly isGroup = input(false);
 
   readonly canceled = output<void>();
   readonly edited = output<void>();
+  readonly viewGroup = output<void>();
 
   readonly totalPrice = computed(() =>
     this.order()

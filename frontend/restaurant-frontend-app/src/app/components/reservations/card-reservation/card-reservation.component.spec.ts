@@ -87,6 +87,26 @@ describe('CardReservationComponent', () => {
     expect(buttonTexts()).not.toContain('Invite Guests');
   });
 
+  describe('a group booking whose order has been sent', () => {
+    const sent = { ...RESERVATION, guestCount: 3, hasSubmittedPreOrder: true };
+
+    it('has no My Pre-Order or Invite Guests, which the backend would refuse', () => {
+      show(sent);
+      expect(buttonTexts()).not.toContain('My Pre-Order');
+      expect(buttonTexts()).not.toContain('Invite Guests');
+    });
+
+    it('keeps Group Pre-Order to view the order', () => {
+      show(sent);
+      expect(buttonTexts()).toContain('Group Pre-Order');
+    });
+
+    it('a sent one-guest order keeps My Pre-Order', () => {
+      show({ ...RESERVATION, guestCount: 1, hasSubmittedPreOrder: true });
+      expect(buttonTexts()).toContain('My Pre-Order');
+    });
+  });
+
   describe('within 30 minutes of the start, or after it', () => {
     const started: ReservationCustomer = {
       ...RESERVATION,

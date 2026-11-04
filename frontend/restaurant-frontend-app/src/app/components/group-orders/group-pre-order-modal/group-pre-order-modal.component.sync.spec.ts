@@ -55,14 +55,12 @@ describe('Рівень 3 · синхронізація', () => {
 
   beforeEach(() => {
     service = jasmine.createSpyObj<GroupOrdersService>('GroupOrdersService', [
-      'getGroupReservationId$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$', 'submitOwnerOrder$',
+      'getGroupReservationId$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$',
     ]);
     service.getGroupReservationId$.and.returnValue(of('grp-1'));
     service.getSessions$.and.returnValue(of(structuredClone(SESSIONS)));
     service.getOwnerSessionId$.and.returnValue(of('owner'));
     service.getStatus$.and.returnValue(of({ currentParticipants: 2, maxCapacity: 5, status: 'Open' as const }));
-    // No guest has submitted here, so Submit sends only the owner's order.
-    service.submitOwnerOrder$.and.returnValue(of({}));
   });
 
   it('кожні 15 с підтягує свіжі кошики — без перезавантаження сторінки', fakeAsync(() => {

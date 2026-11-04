@@ -178,6 +178,12 @@ export class CardReservationComponent {
     );
   });
 
+  // A sent group order is final (it also holds the guests' dishes), so My Pre-Order is not offered
+  // for it; Group Pre-Order still shows it.
+  readonly groupOrderSent = computed(() => {
+    return this.isGroupReservation() && !!this.r().hasSubmittedPreOrder;
+  });
+
   // A group booking shows its order in the group pre-order; a one-guest booking gets its own view.
   readonly canViewOwnPreOrder = computed(() => {
     return (

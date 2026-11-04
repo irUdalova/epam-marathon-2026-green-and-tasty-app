@@ -170,11 +170,12 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       expect(create().element.textContent).toContain('$540.00');
     });
 
-    it('жоден гість не підтвердив: Submit надсилає лише замовлення Owner через /orders/{id}/submit', () => {
+    it('жоден гість не підтвердив: Submit усе одно йде груповим запитом, щоб група закрилась', () => {
       const noGuests = structuredClone(SESSIONS);
       noGuests.participants.forEach((p) => (p.isSubmitted = false));
       service.getSessions$.and.returnValue(of(noGuests));
-      service.submitOwnerOrder$ = jasmine.createSpy('submitOwnerOrder$').and.returnValue(of({}));
+      service.submit$.and.returnValue(of([]));
+      service.submitOwnerOrder$ = jasmine.createSpy('submitOwnerOrder$');
       const { fixture, element } = create();
 
       buttonByText(element, 'Submit Pre-Order')?.click();
@@ -182,8 +183,8 @@ describe('Рівень 2 · сторінка Owner Review', () => {
       buttonByText(element.querySelector('[role="dialog"]')!, 'Submit')?.click();
       fixture.detectChanges();
 
-      expect(service.submitOwnerOrder$).toHaveBeenCalledOnceWith('res-1');
-      expect(service.submit$).not.toHaveBeenCalled();
+      expect(service.submit$).toHaveBeenCalledOnceWith('grp-1', 'res-1');
+      expect(service.submitOwnerOrder$).not.toHaveBeenCalled();
       expect(element.textContent).toContain('Sent to Restaurant');
     });
 
@@ -216,6 +217,19 @@ describe('Рівень 2 · сторінка Owner Review', () => {
 
       expect(element.textContent).toContain('Sent to Restaurant');
       expect(buttonByText(element, 'Submit Pre-Order')).toBeUndefined();
+    });
+
+    it('a successful submit tells the page behind the window (submitted)', () => {
+      service.submit$.and.returnValue(of([]));
+      const { fixture, element } = create();
+      let submitted = 0;
+      fixture.componentInstance.submitted.subscribe(() => submitted++);
+
+      buttonByText(element, 'Submit Pre-Order')?.click();
+      fixture.detectChanges();
+      buttonByText(element.querySelector('[role="dialog"]')!, 'Submit')?.click();
+      fixture.detectChanges();
+      expect(submitted).toBe(1);
     });
 
     it('помилка submit: екран не ламається, кнопку можна натиснути знову', () => {

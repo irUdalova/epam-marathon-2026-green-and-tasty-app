@@ -70,7 +70,12 @@ export const tokenInterceptor: HttpInterceptorFn = (
   }
 
   const authService = inject(AuthenticationService);
+  const hadStoredLogin = authService.hasStoredLogin();
   const tokens = authService.getTokens();
+  // The saved login has just expired (getTokens() signed out), so this request goes without a token.
+  // API Gateway rejects it with a 401 that has no CORS headers, which the browser reports as status 0;
+  // without this the user would only see "An unexpected error occurred".
+  const loginJustExpired = hadStoredLogin && !tokens;
 
   const clonedRequest =
     tokens && tokens.idToken
@@ -87,7 +92,9 @@ export const tokenInterceptor: HttpInterceptorFn = (
       const errorMessage = getServerErrorMessage(error) || 'An unexpected error occurred.';
 
       // The API no longer accepts the stored login: sign out so the header offers Sign In again.
-      const loginRejected = error.status === 401 && !!tokens;
+      const loginRejected =
+        (error.status === 401 && !!tokens) ||
+        (loginJustExpired && (error.status === 0 || error.status === 401));
       if (loginRejected) {
         authService.signOut();
       }
@@ -100,7 +107,10 @@ export const tokenInterceptor: HttpInterceptorFn = (
         return throwError(() => error);
       }
 
-      switch (error.status) {
+      // Status 0 hides the gateway's 401 (no CORS headers); after an expired login it means the same.
+      const status = loginRejected && error.status === 0 ? 401 : error.status;
+
+      switch (status) {
         case 400:
           toastr.error(errorMessage || 'Bad request.', 'Error');
           break;

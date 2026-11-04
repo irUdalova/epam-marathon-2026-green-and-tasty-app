@@ -596,6 +596,24 @@ export class ReservationDashboardComponent implements OnInit {
     });
   }
 
+  // After a submit in the Group Pre-Order window the card changes at once (no My Pre-Order or
+  // Invite Guests for a sent group), instead of waiting for the next page load.
+  markPreOrderSubmitted(reservationId: string): void {
+    this.reservations.update((reservations) =>
+      reservations.map((reservation) =>
+        reservation.id === reservationId
+          ? {
+            ...reservation,
+            hasSubmittedPreOrder: true,
+            preOrder: reservation.preOrder
+              ? { ...reservation.preOrder, status: 3 }
+              : reservation.preOrder,
+          }
+          : reservation,
+      ),
+    );
+  }
+
   closeGroupOrder(): void {
     void this.router.navigate([], {
       relativeTo: this.route,

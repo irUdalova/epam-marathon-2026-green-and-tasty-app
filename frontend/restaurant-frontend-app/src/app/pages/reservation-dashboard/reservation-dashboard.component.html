@@ -99,6 +99,7 @@
 @if (groupOrderReservation(); as reservation) {
   <app-group-pre-order-modal
     [reservation]="reservation"
+    (submitted)="markPreOrderSubmitted(reservation.id)"
     (closed)="closeGroupOrder()"
   />
 }

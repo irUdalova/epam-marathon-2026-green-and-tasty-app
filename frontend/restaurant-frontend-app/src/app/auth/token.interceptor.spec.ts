@@ -19,8 +19,10 @@ describe('tokenInterceptor', () => {
     authService = jasmine.createSpyObj<AuthenticationService>('AuthenticationService', [
       'getTokens',
       'signOut',
+      'hasStoredLogin',
     ]);
     authService.getTokens.and.returnValue(null);
+    authService.hasStoredLogin.and.returnValue(false);
 
     TestBed.configureTestingModule({
       providers: [
@@ -88,6 +90,40 @@ describe('tokenInterceptor', () => {
 
     expect(authService.signOut).toHaveBeenCalled();
     expect(toastService.error).not.toHaveBeenCalled();
+  });
+
+  it('a login that just expired: the gateway\'s hidden 401 (status 0) says the session expired', () => {
+    // getTokens() finds the saved login expired, signs out and returns null.
+    authService.hasStoredLogin.and.returnValue(true);
+    http.get(URL).subscribe({ error: () => undefined });
+
+    const request = httpMock.expectOne(URL);
+    expect(request.request.headers.has('Authorization')).toBeFalse();
+    request.error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+
+    expect(toastService.error).toHaveBeenCalledWith(
+      'Your session has expired. Please sign in again.',
+      'Unauthorized',
+    );
+  });
+
+  it('a public request still goes out after the login expired, and works', () => {
+    authService.hasStoredLogin.and.returnValue(true);
+    let body: unknown;
+    http.get(URL).subscribe((response) => (body = response));
+
+    httpMock.expectOne(URL).flush([{ id: 'dish-1' }]);
+
+    expect(body).toEqual([{ id: 'dish-1' }]);
+    expect(toastService.error).not.toHaveBeenCalled();
+  });
+
+  it('status 0 without an expired login keeps the generic message', () => {
+    http.get(URL).subscribe({ error: () => undefined });
+
+    httpMock.expectOne(URL).error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+
+    expect(toastService.error).toHaveBeenCalledWith('An unexpected error occurred.', 'Error');
   });
 
   it('does not sign out on 401 when no one is logged in', () => {

@@ -165,13 +165,15 @@
           }
         } @else if (role() === Roles.CUSTOMER) {
           @if (!preOrderClosed()) {
-            <button
-              type="button"
-              class="button button--primary button--large"
-              (click)="onPreOrder()"
-            >
-              My Pre-Order
-            </button>
+            @if (!groupOrderSent()) {
+              <button
+                type="button"
+                class="button button--primary button--large"
+                (click)="onPreOrder()"
+              >
+                My Pre-Order
+              </button>
+            }
           } @else if (canViewOwnPreOrder()) {
             <button
               type="button"
@@ -193,7 +195,8 @@
               Group Pre-Order
             </button>
 
-            @if (!preOrderClosed()) {
+            <!-- A sent group takes no more guests; the backend refuses its invite link. -->
+            @if (!preOrderClosed() && !groupOrderSent()) {
               <button
                 type="button"
                 class="button button--secondary button--large"

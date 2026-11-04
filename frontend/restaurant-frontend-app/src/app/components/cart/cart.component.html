@@ -84,8 +84,10 @@
             ) {
             <app-submitted-order
               [order]="item"
+              [isGroup]="groupReservationIds().has(item.reservationId)"
               (canceled)="openCancelModal(item.orderId)"
               (edited)="editOrder(item.orderId)"
+              (viewGroup)="openGroupPreOrder(item.reservationId)"
             />
           }
         </div>

@@ -277,6 +277,16 @@ describe('CartComponent', () => {
       });
     });
 
+    it('View Group Pre-Order on a sent group order opens the group window', () => {
+      spyOn(component.closeCartEvent, 'emit');
+      component.openGroupPreOrder('res-group');
+
+      expect(component.closeCartEvent.emit).toHaveBeenCalled();
+      expect(routerMock.navigate).toHaveBeenCalledWith(['/reservations'], {
+        queryParams: { groupOrder: 'res-group' },
+      });
+    });
+
     it('a one-guest booking\'s order is still sent from the basket', () => {
       preOrdersServiceMock.getPreOrders.and.returnValue(of([order('solo', 'res-solo')]));
       preOrdersServiceMock.submitPreOrderByReservationId.and.returnValue(of({}));

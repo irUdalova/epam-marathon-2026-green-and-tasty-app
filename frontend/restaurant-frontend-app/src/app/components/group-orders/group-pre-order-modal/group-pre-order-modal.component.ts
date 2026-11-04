@@ -67,6 +67,8 @@ export class GroupPreOrderModalComponent implements OnInit {
   /** The booking from My Bookings; it also gives the header its address, time and guest count. */
   readonly reservation = input.required<ReservationCustomer>();
   readonly closed = output<void>();
+  /** The order was sent: the page behind the window updates its card without a reload. */
+  readonly submitted = output<void>();
 
   private loadSubscription?: Subscription;
   private syncSubscription?: Subscription;
@@ -214,12 +216,9 @@ export class GroupPreOrderModalComponent implements OnInit {
     }
 
     this.submitting.set(true);
-    // The group submit returns 400 when no guest has submitted, so then only the owner's order is sent.
-    const request$: Observable<unknown> = this.hasSubmittedGuests()
-      ? this.groupOrdersService.submit$(groupId, this.reservationId())
-      : this.groupOrdersService.submitOwnerOrder$(this.reservationId());
-
-    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    // Always the group submit, even with no submitted guest: only it marks the group as Submitted,
+    // so the order cannot be sent or changed again from here.
+    this.groupOrdersService.submit$(groupId, this.reservationId()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.submitting.set(false);
         this.confirmOpen.set(false);
@@ -227,6 +226,7 @@ export class GroupPreOrderModalComponent implements OnInit {
         this.stopSync();
         this.toastService.success('Pre-order sent to the restaurant');
         this.cartSummaryService.refresh();
+        this.submitted.emit();
       },
       // tokenInterceptor already shows the API error in a toast.
       error: () => {
@@ -252,6 +252,7 @@ export class GroupPreOrderModalComponent implements OnInit {
         next: () => {
           this.toastService.success('Pre-order sent to the restaurant');
           this.cartSummaryService.refresh();
+          this.submitted.emit();
           this.closed.emit();
         },
         // tokenInterceptor already shows the API error in a toast.
