@@ -68,6 +68,10 @@
   }
 
   // Fade the content only, so the status badge stays crisp.
+  &.clickable {
+    cursor: pointer;
+  }
+
   &.unavailable {
     pointer-events: none;
     cursor: not-allowed;

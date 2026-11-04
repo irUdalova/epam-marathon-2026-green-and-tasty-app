@@ -3,6 +3,7 @@
     role="button"
     [tabindex]="isUnavailable() ? -1 : 0"
     [class.unavailable]="isUnavailable()"
+    [class.clickable]="isClickable()"
     [style.max-width]="maxWidth() || null"
     (click)="onCardClicked()"
     (keydown.space)="onCardClicked()"

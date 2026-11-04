@@ -43,6 +43,24 @@ describe('NotSubmittedOrderComponent', () => {
     fixture.detectChanges();
   });
 
+  it('a group booking\'s button reads «Review Group Pre-Order»; a one-guest booking\'s «Submit Pre-order»', () => {
+    const button = () => (fixture.nativeElement as HTMLElement).querySelector('.submit-btn')!.textContent?.trim();
+    expect(button()).toBe('Submit Pre-order');
+
+    fixture.componentRef.setInput('isGroup', true);
+    fixture.detectChanges();
+    expect(button()).toBe('Review Group Pre-Order');
+  });
+
+  it('titles the order with the address and booking time, without the order id', () => {
+    const title = (fixture.nativeElement as HTMLElement).querySelector('.order-title')!;
+
+    expect(title.textContent).toContain('Test address');
+    expect(title.textContent).toContain('2026-09-07T12:15:00Z');
+    expect(title.textContent).not.toContain('order-1');
+    expect(title.textContent).not.toContain('Pre-order #');
+  });
+
   it('should create', () => {
     expect(component).toBeTruthy();
   });

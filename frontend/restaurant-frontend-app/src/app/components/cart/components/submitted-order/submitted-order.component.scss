@@ -48,3 +48,13 @@
   letter-spacing: 0;
   vertical-align: middle;
 }
+
+// Address on the first line, date and time below; the order id means nothing to the customer.
+.order-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-note {
+  margin: 0;
+}

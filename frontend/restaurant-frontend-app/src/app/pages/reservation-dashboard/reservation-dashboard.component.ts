@@ -8,8 +8,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   catchError,
   finalize,
@@ -21,6 +21,9 @@ import {
 
 import { AuthenticationService } from '@app/auth/services/authentication.service';
 import { CardReservationComponent } from '@app/components/reservations/card-reservation/card-reservation.component';
+import { GroupPreOrderModalComponent } from '@app/components/group-orders/group-pre-order-modal/group-pre-order-modal.component';
+import { InviteGuestsModalComponent } from '@app/components/reservations/invite-guests-modal/invite-guests-modal.component';
+import { PreOrderViewModalComponent } from '@app/components/reservations/pre-order-view-modal/pre-order-view-modal.component';
 import { FeedbackWindowComponent } from '@app/components/reservations/feedback-window/feedback-window.component';
 import { ReservationConfirmedComponent } from '@app/components/reservations/reservation-confirmed/reservation-confirmed.component';
 import { MakeReservationComponent } from '@app/components/tables/make-reservation/make-reservation.component';
@@ -34,6 +37,7 @@ import {
 import { Table } from '@app/models/tables/table.model';
 import { TimeRange } from '@app/models/tables/time-range.model';
 import { LocationsService } from '@app/services/locations/locations.service';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
 import { ReservationService } from '@app/services/reservation/reservation.service';
 import { TableService } from '@app/services/table/table.service';
@@ -59,6 +63,9 @@ interface ReservationStatusView {
     MakeReservationComponent,
     ReservationConfirmedComponent,
     FeedbackWindowComponent,
+    GroupPreOrderModalComponent,
+    InviteGuestsModalComponent,
+    PreOrderViewModalComponent,
   ],
   templateUrl: './reservation-dashboard.component.html',
   styleUrl: './reservation-dashboard.component.scss',
@@ -74,7 +81,9 @@ export class ReservationDashboardComponent implements OnInit {
   private readonly tableService = inject(TableService);
   private readonly locationsService = inject(LocationsService);
   private readonly ordersService = inject(PreOrdersService);
+  private readonly cartSummaryService = inject(CartSummaryService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly Roles = Roles;
@@ -96,6 +105,24 @@ export class ReservationDashboardComponent implements OnInit {
   readonly showEditReservationModal = signal(false);
   readonly showEditReservationConfirmed = signal(false);
   readonly showFeedbackModal = signal(false);
+
+  readonly inviteReservation = signal<ReservationCustomer | null>(null);
+  readonly preOrderViewReservation = signal<ReservationCustomer | null>(null);
+
+  // ?groupOrder=<reservationId> opens the group pre-order over the list, so the basket and the
+  // reservation card can both link to it.
+  readonly groupOrderReservationId = toSignal(
+    this.route.queryParamMap.pipe(map((params) => params.get('groupOrder'))),
+    { initialValue: null },
+  );
+
+  // The modal opens once the bookings are loaded: its header comes from the booking.
+  readonly groupOrderReservation = computed(() => {
+    const reservationId = this.groupOrderReservationId();
+    return reservationId
+      ? this.reservations().find((reservation) => reservation.id === reservationId) ?? null
+      : null;
+  });
 
   readonly statusEnum: Record<number, ReservationStatusView> = {
     [ReservationStatusCustomer.Reserved]: {
@@ -188,6 +215,9 @@ export class ReservationDashboardComponent implements OnInit {
             );
             return;
           }
+
+          // The cancelled booking's order leaves the basket.
+          this.cartSummaryService.refresh();
 
           this.reservations.update((reservations) =>
             reservations.map((reservation) =>
@@ -556,5 +586,39 @@ export class ReservationDashboardComponent implements OnInit {
   ): number {
     const match = tableName?.match(/\d+/);
     return match ? Number(match[0]) : 0;
+  }
+
+  openGroupOrder(reservationId: string): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { groupOrder: reservationId },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  // After a submit in the Group Pre-Order window the card changes at once (no My Pre-Order or
+  // Invite Guests for a sent group), instead of waiting for the next page load.
+  markPreOrderSubmitted(reservationId: string): void {
+    this.reservations.update((reservations) =>
+      reservations.map((reservation) =>
+        reservation.id === reservationId
+          ? {
+            ...reservation,
+            hasSubmittedPreOrder: true,
+            preOrder: reservation.preOrder
+              ? { ...reservation.preOrder, status: 3 }
+              : reservation.preOrder,
+          }
+          : reservation,
+      ),
+    );
+  }
+
+  closeGroupOrder(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { groupOrder: null },
+      queryParamsHandling: 'merge',
+    });
   }
 }

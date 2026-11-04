@@ -14,6 +14,7 @@ using APIHandler.Repositories.GuestSessions;
 using APIHandler.Repositories.Orders;
 using APIHandler.Repositories.Reservations;
 using APIHandler.Repositories.Tables;
+using APIHandler.Services.GroupReservations;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -31,7 +32,8 @@ public class GuestSessionService(
     IReservationRepository reservationRepository,
     IUserRepository userRepository,
     ITableRepository tableRepository,
-    IOrderRepository orderRepository) : IGuestSessionService
+    IOrderRepository orderRepository,
+    IGroupReservationService groupReservationService) : IGuestSessionService
 {
     public async Task<bool> IsAuthorizedAsync(string guestSessionToken, string guestSessionId)
     {
@@ -396,8 +398,12 @@ public class GuestSessionService(
 
         EnsureReservationOwner(reservation, userId);
 
+        // A booking edited from one guest to more, or made before group pre-orders existed, has no
+        // group yet; a Reserved booking for two or more gets one here, as when it is made.
         var group = await groupReservationRepository.GetByReservationIdAsync(reservationId)
-            ?? throw new GroupReservationNotFoundException();
+            ?? (reservation.Status == ReservationStatus.Reserved && reservation.GuestCount >= 2
+                ? await groupReservationService.CreateGroupReservationAsync(reservationId)
+                : throw new GroupReservationNotFoundException());
 
         var sessions = await guestSessionRepository.GetAllByGroupReservationIdAsync(group.GroupReservationId);
 
@@ -405,7 +411,7 @@ public class GuestSessionService(
         var ownerSession = sessions.FirstOrDefault(s => s.IsOwnerSession)
             ?? await CreateGroupOwnerSessionAsync(userId, group.GroupReservationId);
 
-        return new OwnerGuestSessionIdResponse(ownerSession.Id);
+        return new OwnerGuestSessionIdResponse(ownerSession.Id, group.GroupReservationId);
     }
 
     public async Task<List<ConsolidatedDishResponse>> SubmitGroupPreOrderAsync(string userId, string groupReservationId, string reservationId)
@@ -427,9 +433,6 @@ public class GuestSessionService(
             .Where(s => s.IsSubmitted)
             .ToList();
 
-        if (submittedSessions.Count == 0)
-            throw new ValidationException("There are no submitted guest sessions to confirm.");
-
         var submittedItems = submittedSessions
             .SelectMany(s => s.Dishes ?? [])
             .Where(d => d.Quantity > 0)
@@ -448,11 +451,13 @@ public class GuestSessionService(
             .Select(g => new ConsolidatedDishResponse(g.Key, g.Sum(d => d.Quantity)))
             .ToList();
 
-        if (consolidated.Count == 0)
-            throw new ValidationException("Submitted guest sessions contain no dishes.");
-
         var order = await orderRepository.GetOrderByReservationIdAsync(reservationId)
             ?? throw new ValidationException($"Order for reservation {reservationId} was not found.");
+
+        // With no guest dishes the owner's own pre-order is sent alone, and the group is still marked
+        // Submitted, so it cannot be submitted or changed again. There must be something to send.
+        if (consolidated.Count == 0 && !(order.Dishes ?? []).Any(d => d.Quantity > 0))
+            throw new ValidationException("There is nothing to submit: no guest has submitted dishes and your own pre-order is empty.");
 
         order.Dishes ??= [];
         foreach (var item in consolidated)

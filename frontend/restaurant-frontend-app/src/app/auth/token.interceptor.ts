@@ -20,7 +20,9 @@ export const tokenInterceptor: HttpInterceptorFn = (
   // IMPORTANT: do not modify Guest endpoints at all.
   // Guest flow uses a different token (guest session token) and we must not touch the body.
   // Otherwise we break POST /guest/sessions payload.
-  if (req.url.includes('/guest/')) {
+  // /guest/groups/ endpoints are the exception: only the reservation owner calls them, with the
+  // Cognito login, so they take the normal path below.
+  if (req.url.includes('/guest/') && !req.url.includes('/guest/groups/')) {
     return next(req).pipe(
       catchError((error: HttpErrorResponse) => {
         console.log(error);
@@ -68,7 +70,12 @@ export const tokenInterceptor: HttpInterceptorFn = (
   }
 
   const authService = inject(AuthenticationService);
+  const hadStoredLogin = authService.hasStoredLogin();
   const tokens = authService.getTokens();
+  // The saved login has just expired (getTokens() signed out), so this request goes without a token.
+  // API Gateway rejects it with a 401 that has no CORS headers, which the browser reports as status 0;
+  // without this the user would only see "An unexpected error occurred".
+  const loginJustExpired = hadStoredLogin && !tokens;
 
   const clonedRequest =
     tokens && tokens.idToken
@@ -84,6 +91,14 @@ export const tokenInterceptor: HttpInterceptorFn = (
       console.log(error);
       const errorMessage = getServerErrorMessage(error) || 'An unexpected error occurred.';
 
+      // The API no longer accepts the stored login: sign out so the header offers Sign In again.
+      const loginRejected =
+        (error.status === 401 && !!tokens) ||
+        (loginJustExpired && (error.status === 0 || error.status === 401));
+      if (loginRejected) {
+        authService.signOut();
+      }
+
       if (clonedRequest.url.includes('orders') && error.status === 404) {
         return throwError(() => error);
       }
@@ -92,12 +107,20 @@ export const tokenInterceptor: HttpInterceptorFn = (
         return throwError(() => error);
       }
 
-      switch (error.status) {
+      // Status 0 hides the gateway's 401 (no CORS headers); after an expired login it means the same.
+      const status = loginRejected && error.status === 0 ? 401 : error.status;
+
+      switch (status) {
         case 400:
           toastr.error(errorMessage || 'Bad request.', 'Error');
           break;
         case 401:
-          toastr.error('Please log in to perform the action!', 'Unauthorized');
+          toastr.error(
+            loginRejected
+              ? 'Your session has expired. Please sign in again.'
+              : 'Please log in to perform the action!',
+            'Unauthorized',
+          );
           break;
         case 403:
           toastr.error(errorMessage || 'You are not allowed!', 'Forbidden');

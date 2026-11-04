@@ -273,6 +273,12 @@
   transform: scale(1.1);
 }
 
+// The cart's count reuses the notification badge, placed on the icon's corner.
+.cart-icon {
+  position: relative;
+  display: inline-flex;
+}
+
 .notification-badge {
   position: absolute;
   top: -5px;

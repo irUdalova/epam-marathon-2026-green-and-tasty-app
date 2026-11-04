@@ -75,4 +75,35 @@ describe('SubmittedOrderComponent', () => {
   it('should exclude rejected items from total price', () => {
     expect(component.totalPrice()).toBe(20);
   });
+
+  describe('a sent group order', () => {
+    function buttons(): string[] {
+      return [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].map(
+        (button) => button.textContent?.trim() ?? '',
+      );
+    }
+
+    it('a one-guest order keeps Edit and Cancel', () => {
+      expect(buttons()).toEqual(['Cancel Pre-order', 'Edit Pre-order']);
+    });
+
+    it('a group order can only be viewed: no Edit or Cancel', () => {
+      fixture.componentRef.setInput('isGroup', true);
+      fixture.detectChanges();
+
+      expect(buttons()).toEqual(['View Group Pre-Order']);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Sent with the group pre-order');
+    });
+
+    it('View Group Pre-Order emits viewGroup', () => {
+      fixture.componentRef.setInput('isGroup', true);
+      fixture.detectChanges();
+      let viewed = 0;
+      component.viewGroup.subscribe(() => viewed++);
+
+      (fixture.nativeElement as HTMLElement).querySelector('button')!.click();
+
+      expect(viewed).toBe(1);
+    });
+  });
 });

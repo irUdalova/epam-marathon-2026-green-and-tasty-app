@@ -17,7 +17,11 @@ export class AuthenticationService {
   public isAuthorised$: Observable<boolean> = this.isAuthorised$$.asObservable();
   public jwtHelperService = new JwtHelperService();
   private readonly http = inject(HttpClient);
-  
+
+  constructor() {
+    this.dropStaleLogin();
+  }
+
   async signIn(email: string, password: string): Promise<LoginResult> {
     const body = {
       email: email,
@@ -146,6 +150,16 @@ export class AuthenticationService {
       }
     );
   }
+  // A stored login counts only with a valid token and the user profile. Otherwise the header
+  // hides Sign In without showing the user menu, and the user is stuck until storage is cleared.
+  private dropStaleLogin(): void {
+    if (localStorage.getItem('auth') === null) {
+      return;
+    }
+    if (this.getTokens() === null || this.getUser() === null) {
+      this.signOut();
+    }
+  }
   getUser(): UserModel | null {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
@@ -197,6 +211,10 @@ export class AuthenticationService {
         },
       });
     });
+  }
+  /** True while a login is saved, even an expired one (getTokens() then signs out). */
+  hasStoredLogin(): boolean {
+    return localStorage.getItem('auth') !== null;
   }
   getTokens(): Tokens | null {
     const authStr = localStorage.getItem('auth');

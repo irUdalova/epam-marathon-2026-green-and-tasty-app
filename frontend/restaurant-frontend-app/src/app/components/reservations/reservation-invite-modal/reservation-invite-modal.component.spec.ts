@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { GroupInviteToken } from '@app/models/reservations/guest-invite.model';
 import { Reservation, ReservationStatus } from '@app/models/reservations/reservation.model';
 import { GuestInviteService } from '@app/services/reservation/guest-invite.service';
 import { ToastService } from '@app/services/toast/toast.service';
+import { InviteLinkComponent } from '@app/components/reservations/invite-link/invite-link.component';
 import { ReservationInviteModalComponent } from './reservation-invite-modal.component';
 
 const BASE_RESERVATION: Reservation = {
@@ -32,6 +34,12 @@ describe('ReservationInviteModalComponent', () => {
     fixture.componentRef.setInput('reservation', reservation);
     fixture.detectChanges();
   }
+
+  // The link field (and its copy button) lives in the shared InviteLinkComponent.
+  function inviteLink(): InviteLinkComponent {
+    return fixture.debugElement.query(By.directive(InviteLinkComponent)).componentInstance;
+  }
+
 
   beforeEach(async () => {
     toastService = jasmine.createSpyObj<ToastService>('ToastService', ['success', 'error']);
@@ -115,7 +123,7 @@ describe('ReservationInviteModalComponent', () => {
     render(BASE_RESERVATION);
     const writeText = spyOn(navigator.clipboard, 'writeText').and.resolveTo();
 
-    await component.onCopyLink();
+    await inviteLink().onCopyLink();
 
     expect(writeText).not.toHaveBeenCalled();
     expect(toastService.success).not.toHaveBeenCalled();
@@ -125,7 +133,7 @@ describe('ReservationInviteModalComponent', () => {
     render(BASE_RESERVATION);
     const writeText = spyOn(navigator.clipboard, 'writeText').and.resolveTo();
 
-    await component.onCopyLink();
+    await inviteLink().onCopyLink();
 
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/join/abc123xyz`);
     expect(toastService.success).toHaveBeenCalledWith('Share it with your friends.', 'Link copied!');
@@ -135,7 +143,7 @@ describe('ReservationInviteModalComponent', () => {
     render(BASE_RESERVATION);
     spyOn(navigator.clipboard, 'writeText').and.rejectWith(new Error('denied'));
 
-    await component.onCopyLink();
+    await inviteLink().onCopyLink();
 
     expect(toastService.error).toHaveBeenCalled();
     expect(toastService.success).not.toHaveBeenCalled();
@@ -151,13 +159,19 @@ describe('ReservationInviteModalComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/reservations']);
   });
 
-  it('closes and navigates to the menu on Make Pre-Order', () => {
+  it('closes and opens the menu in pre-order mode on Make Pre-Order', () => {
     render(BASE_RESERVATION);
     spyOn(component.closed, 'emit');
 
     element.querySelector<HTMLButtonElement>('.pre-order-btn')!.click();
 
     expect(component.closed.emit).toHaveBeenCalled();
-    expect(router.navigate).toHaveBeenCalledWith(['/menu']);
+    expect(router.navigate).toHaveBeenCalledWith(['/menu'], {
+      queryParams: {
+        preOrder: 'true',
+        reservationId: 'res-1',
+        reservationLabel: '48 Rustaveli Avenue, Sat, Oct 17, 2026, 12:00 PM – 2:00 PM',
+      },
+    });
   });
 });

@@ -125,15 +125,17 @@
   <div class="actions">
     @switch (r().status) {
       @case (ReservationStatusCustomer.Reserved) {
-        <button
-          type="button"
-          class="button button--tertiary button--large"
-          (click)="cancelReservation.emit(r().id)"
-        >
-          Cancel
-        </button>
+        @if (!isClosedForCustomer()) {
+          <button
+            type="button"
+            class="button button--tertiary button--large"
+            (click)="cancelReservation.emit(r().id)"
+          >
+            Cancel
+          </button>
+        }
 
-        @if (role() === Roles.CUSTOMER) {
+        @if (role() === Roles.CUSTOMER && !isClosedForCustomer()) {
           <button
             type="button"
             class="button button--secondary button--large"
@@ -162,13 +164,48 @@
             </button>
           }
         } @else if (role() === Roles.CUSTOMER) {
-          <button
-            type="button"
-            class="button button--primary button--large"
-            (click)="onPreOrder()"
-          >
-            Pre-order
-          </button>
+          @if (!preOrderClosed()) {
+            @if (!groupOrderSent()) {
+              <button
+                type="button"
+                class="button button--primary button--large"
+                (click)="onPreOrder()"
+              >
+                My Pre-Order
+              </button>
+            }
+          } @else if (canViewOwnPreOrder()) {
+            <button
+              type="button"
+              class="button button--secondary button--large view-only"
+              (click)="viewPreOrder.emit(r())"
+            >
+              My Pre-Order
+            </button>
+          }
+
+          @if (isGroupReservation()) {
+            <!-- After the cutoff the group pre-order opens read-only, so the button turns grey. -->
+            <button
+              type="button"
+              class="button button--secondary button--large"
+              [class.view-only]="preOrderClosed()"
+              (click)="groupPreOrder.emit(r().id)"
+            >
+              Group Pre-Order
+            </button>
+
+            <!-- A sent group takes no more guests; the backend refuses its invite link. -->
+            @if (!preOrderClosed() && !groupOrderSent()) {
+              <button
+                type="button"
+                class="button button--secondary button--large"
+                (click)="inviteGuests.emit(r())"
+              >
+                Invite Guests
+              </button>
+            }
+          }
         }
       }
 

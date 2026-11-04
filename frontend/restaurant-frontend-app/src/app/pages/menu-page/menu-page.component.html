@@ -31,6 +31,9 @@
     <div class="menu-section">
       <div class="filter-sort-bar">
         <div class="category-buttons">
+          <button type="button" (click)="onCategorySelected(null)" [class.active]="selectedCategory === null">
+            All
+          </button>
           @for (category of menuCategories; track category) {
             <button
               (click)="onCategorySelected(category)"

@@ -1,0 +1,190 @@
+<!-- neutral-100: the design puts white participant cards on a light-grey window. -->
+<app-modal width="840px" background="#f7f7f7" (closed)="close()">
+  <!-- First in the window, so its buttons come before the cards' own «Remove Guest» links. -->
+  @if (removeTarget(); as guest) {
+    <app-modal title="Remove Guest" (closed)="closeRemove()">
+      <p class="confirm-text">
+        Are you sure you want to remove <strong>{{ guest.name }}</strong> and their pre-order from this reservation?
+        This action cannot be undone. They can join again with the invite link.
+      </p>
+      <div modal-actions class="confirm-actions">
+        <button type="button" class="button button--tertiary button--large" [disabled]="removing()" (click)="closeRemove()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="button button--secondary button--large remove-confirm"
+          [disabled]="removing()"
+          (click)="confirmRemove()"
+        >
+          {{ removing() ? 'Removing…' : 'Remove Guest' }}
+        </button>
+      </div>
+    </app-modal>
+  }
+
+  <header class="group-header">
+    <div class="heading">
+      <h1 class="title">Group Pre-Order</h1>
+      @if (state() === 'ready') {
+        <span class="status-badge" [class.sent]="isLocked()">{{ statusLabel() }}</span>
+      }
+    </div>
+
+    @if (reservation(); as reservation) {
+      <ul class="meta">
+        <li>
+          <img src="assets/svg/location-green.svg" alt="" width="16" height="16" />
+          <span class="visually-hidden">Address:</span> {{ reservation.locationAddress }}
+        </li>
+        <li>
+          <img src="assets/svg/calendar-green.svg" alt="" width="16" height="16" />
+          <span class="visually-hidden">Date:</span> {{ reservation.startTime | date: 'MMM d, y' }}
+        </li>
+        <li>
+          <img src="assets/svg/clock-green.svg" alt="" width="16" height="16" />
+          <span class="visually-hidden">Time:</span>
+          {{ reservation.startTime | date: 'HH:mm' }} – {{ reservation.endTime | date: 'HH:mm' }}
+        </li>
+        @if (state() === 'ready') {
+          <li>
+            <img src="assets/svg/people-green.svg" alt="" width="16" height="16" />
+            {{ participants().length }} of {{ reservation.guestCount }} guests
+          </li>
+        }
+      </ul>
+    }
+
+    @if (state() === 'ready' && lastUpdated(); as updated) {
+      <div class="sync-line">
+        @if (refreshFailed()) {
+          <p class="sync-text failed" role="status">Couldn’t refresh. Showing data from {{ updated | date: 'HH:mm:ss' }}.</p>
+        } @else {
+          <p class="sync-text">Updated at {{ updated | date: 'HH:mm:ss' }}</p>
+        }
+        <button
+          type="button"
+          class="button button--tertiary button--small"
+          [disabled]="syncing()"
+          (click)="refreshNow()"
+        >
+          Refresh
+        </button>
+      </div>
+    }
+  </header>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="state-message" role="status">Loading the group pre-order…</p>
+    }
+
+    @case ('not-found') {
+      <div class="state-message">
+        <p>Group reservation not found</p>
+        @if (canSubmitOwnOnly()) {
+          <p class="own-only-note">No guests have joined this booking, so you can send only your own pre-order.</p>
+          <button
+            type="button"
+            class="button button--primary button--large"
+            [disabled]="submitting()"
+            (click)="submitOwnOnly()"
+          >
+            {{ submitting() ? 'Submitting…' : 'Submit my Pre-Order' }}
+          </button>
+        }
+        <button type="button" class="button button--secondary button--large" (click)="closed.emit()">Close</button>
+      </div>
+    }
+
+    @case ('error') {
+      <div class="state-message" role="alert">
+        <p>Couldn’t load the group pre-order.</p>
+        <button type="button" class="button button--secondary button--large" (click)="load()">Try again</button>
+      </div>
+    }
+
+    @case ('ready') {
+      @if (!isLocked() && pendingGuests() > 0) {
+        <p class="pending-banner" role="status">
+          <img src="assets/svg/bell-regular.svg" alt="" width="20" height="20" />
+          {{ pendingMessage() }}
+        </p>
+      }
+
+      @if (!hasDishes()) {
+        <p class="state-message">Participants haven’t added any dishes yet</p>
+      }
+
+      <ul class="participants">
+        @for (person of participants(); track person.id ?? $index) {
+          <li>
+            <!-- A locked order shows the owner's card read-only, the same as a guest's. -->
+            <app-participant-card
+              [participant]="person"
+              [isOwn]="isOwner(person)"
+              [editable]="isOwner(person) && !isLocked()"
+              [busy]="savingOwnOrder() || removing()"
+              [canRemove]="canRemove(person)"
+              (quantityChange)="changeOwnQuantity(person, $event)"
+              (dishRemove)="removeOwnDish(person, $event)"
+              (removeClick)="openRemove($event)"
+            >
+              @if (isOwner(person) && !isLocked()) {
+                <button card-actions type="button" class="button button--tertiary button--small" (click)="editMyPreOrder()">
+                  Edit my Pre-Order
+                </button>
+              }
+            </app-participant-card>
+          </li>
+        }
+      </ul>
+
+      <footer class="summary">
+        <p class="grand-total">
+          <span>Grand Total</span>
+          <span class="amount">{{ consolidated().total | currency }}</span>
+        </p>
+
+        @if (isLocked()) {
+          @if (closedByTime()) {
+            <p class="sent-note">Pre-orders close 30 minutes before the booking starts, so this one can no longer be changed.</p>
+          } @else {
+            <p class="sent-note">This pre-order has been sent to the restaurant. It can no longer be changed here.</p>
+          }
+        } @else {
+          <button
+            type="button"
+            class="button button--primary button--extra-large button--full-width"
+            [disabled]="!canSubmit()"
+            (click)="openConfirm()"
+          >
+            Submit Pre-Order
+          </button>
+        }
+      </footer>
+    }
+  }
+
+  @if (confirmOpen()) {
+    <app-modal title="Submit Pre-Order" (closed)="closeConfirm()">
+      <p class="confirm-text">
+        Send the order for {{ consolidated().total | currency }} to the restaurant?
+        @if (hasSubmittedGuests()) {
+          Guests won’t be able to change their carts after that.
+        } @else {
+          No guest has submitted a cart yet, so only your dishes will be sent.
+        }
+      </p>
+      <div modal-actions class="confirm-actions">
+        <button type="button" class="button button--tertiary button--large" [disabled]="submitting()" (click)="closeConfirm()">
+          Cancel
+        </button>
+        <button type="button" class="button button--primary button--large" [disabled]="submitting()" (click)="submit()">
+          {{ submitting() ? 'Submitting…' : 'Submit' }}
+        </button>
+      </div>
+    </app-modal>
+  }
+</app-modal>
+

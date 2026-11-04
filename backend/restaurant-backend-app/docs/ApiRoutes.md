@@ -527,6 +527,10 @@ Response: `200 OK`
 }
 ```
 
+> **Updated (2026-11-03).** A Reserved booking for two or more guests that has no group reservation yet
+> (edited from one guest to more, or made before group pre-orders existed) gets one here, so the link can be
+> shared. Before, this returned `500`.
+
 ### `GET` /reservations/{reservationId}/feedback
 Response: `200 OK`
 ```json
@@ -558,7 +562,8 @@ Response: `200 OK`
 Response: `200 OK`
 ```json
 {
-  "guestSessionId": "string"
+  "guestSessionId": "string",
+  "groupReservationId": "string"
 }
 ```
 
@@ -972,6 +977,11 @@ Response: `200 OK`
 "Pre-order unsubmitted successfully."
 ```
 
+> **Updated (2026-11-04).** `PUT`, `DELETE` and `unsubmit` on `/orders/{reservationId}` return `400`
+> ("This group pre-order has been sent to the restaurant and can no longer be changed.") for a customer
+> when the reservation's group pre-order is `Submitted`: the order then also holds the guests' dishes.
+> A waiter can still edit it once the table is in progress.
+
 ## Reports
 
 ### `GET` /reports/download
@@ -1190,17 +1200,26 @@ Returns the id of the owner's own session in the group pre-order of this reserva
 The session is created on the first request (`isOwnerSession: true`, no dishes) and the same id is
 returned afterwards.
 
+> **Updated (2026-11-03).** The response also carries `groupReservationId`, so the owner can call the
+> `/guest/groups/{groupReservationId}/...` and `/group-reservations/{groupReservationId}/submit` endpoints.
+> Before this, the only source of that id was `GET /guest/invites/{token}`, which refuses once the group is
+> full (`Guest limit exceeded`) or no longer open.
+
 Auth: Cognito (`Authorization: Bearer <idToken>`). Only the owner of the reservation may call it.
 
 Response: `200 OK`
 ```json
 {
-  "guestSessionId": "owner-session-123"
+  "guestSessionId": "owner-session-123",
+  "groupReservationId": "group-456"
 }
 ```
 
 Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
 `404` reservation or its group reservation not found.
+
+> **Updated (2026-11-03).** A Reserved booking for two or more guests that has no group reservation yet gets
+> one here instead of `404`. A one-guest, cancelled or finished booking without a group still returns `404`.
 
 Note: the owner session has no guest token, so the guest endpoints (`/guest/sessions/{guestSessionId}/...`)
 cannot be called for it yet.
@@ -1238,10 +1257,14 @@ Response: `200 OK` with the merged dishes taken from the guest sessions:
 ]
 ```
 
+> **Updated (2026-11-04).** It no longer needs a submitted guest: with no guest dishes the owner's
+> own order is sent alone and the group is still set to `Submitted`, so it cannot be submitted or
+> changed again. The response is then `[]`.
+
 Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
 `404` group reservation or its reservation not found ·
-`400` `reservationId` missing or not the reservation of this group · no submitted sessions ·
-no dishes in the submitted sessions · order not found ·
+`400` `reservationId` missing or not the reservation of this group ·
+nothing to submit (no guest dishes and the owner's order is empty) · order not found ·
 group already submitted (`errorCode: GroupReservationSubmitted`) or closed (`errorCode: GroupReservationExpired`).
 
 ### `GET` /guest/groups/{groupReservationId}/sessions

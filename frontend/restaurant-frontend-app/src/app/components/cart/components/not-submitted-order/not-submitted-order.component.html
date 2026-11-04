@@ -1,10 +1,10 @@
 <div class="not-submitted-order">
   <div class="content">
     <div class="order">
-      <span class="body-bold">
-        Pre-order #{{ order().orderId }}
-        ({{ order().reservationAddress }}, {{ order().reservationTime }})
-      </span>
+      <div class="order-title">
+        <span class="body-bold">{{ order().reservationAddress }}</span>
+        <span class="body">{{ order().reservationTime }}</span>
+      </div>
 
       <div class="order-item">
         @for (item of order().orderItems; track item.dish.id) {
@@ -44,7 +44,7 @@
                 <div class="quantity-buttons">
                   <button
                     type="button"
-                    class="icon-button icon-button--small"
+                    class="icon-button icon-button--outlined icon-button--small"
                     aria-label="Decrease quantity"
                     [disabled]="item.quantity <= 1"
                     (click)="decrementItemQuantity(item.dish.id)"
@@ -62,7 +62,7 @@
 
                   <button
                     type="button"
-                    class="icon-button icon-button--small"
+                    class="icon-button icon-button--outlined icon-button--small"
                     aria-label="Increase quantity"
                     (click)="incrementItemQuantity(item.dish.id)"
                   >
@@ -113,6 +113,6 @@
     class="button button--primary button--large submit-btn"
     (click)="submit()"
   >
-    Submit Pre-order
+    {{ isGroup() ? 'Review Group Pre-Order' : 'Submit Pre-order' }}
   </button>
 </div>

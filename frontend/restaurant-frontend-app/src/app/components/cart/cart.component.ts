@@ -10,9 +10,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { finalize } from 'rxjs';
 
 import { Order } from '@app/models/orders/order.model';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { PreOrdersService } from '@app/services/pre-orders/pre-orders.service';
+import { buildPreOrderQueryParamsFromOrder } from '@app/shared/helpers/pre-order-query-params';
 
 import { CancelOrderModalComponent } from './components/cancel-order-modal/cancel-order-modal.component';
 import { NotSubmittedOrderComponent } from './components/not-submitted-order/not-submitted-order.component';
@@ -36,12 +39,28 @@ export class CartComponent implements OnInit {
   private readonly preOrdersService =
     inject(PreOrdersService);
 
+  private readonly cartSummaryService =
+    inject(CartSummaryService);
+
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly closeCartEvent = output<void>();
 
   readonly orders = signal<Order[]>([]);
+
+  // Orders and bookings load together and can take a few seconds; until then the basket
+  // must not claim to be empty.
+  readonly loading = signal(true);
+  readonly showLoading = computed(
+    () => this.loading() && this.orders().length === 0,
+  );
+  readonly showEmpty = computed(
+    () => !this.loading() && this.orders().length === 0,
+  );
+
+  // Bookings for 2 or more guests: their order goes through the Group Pre-Order window.
+  readonly groupReservationIds = signal<ReadonlySet<string>>(new Set());
 
   readonly cancelOrderId = signal<string | null>(null);
   readonly submitOrderId = signal<string | null>(null);
@@ -160,6 +179,13 @@ export class CartComponent implements OnInit {
       return;
     }
 
+    // Sending it from here would leave the guests' dishes out, so the owner reviews and
+    // submits the whole group order in the Group Pre-Order window instead.
+    if (this.groupReservationIds().has(order.reservationId)) {
+      this.openGroupPreOrder(order.reservationId);
+      return;
+    }
+
     this.preOrdersService
       .submitPreOrderByReservationId(order.reservationId)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -177,9 +203,25 @@ export class CartComponent implements OnInit {
       });
   }
 
+  // Without the pre-order params the menu shows no Pre-Order buttons.
+  openGroupPreOrder(reservationId: string): void {
+    this.closeCart();
+    void this.router.navigate(['/reservations'], {
+      queryParams: { groupOrder: reservationId },
+    });
+  }
+
   addDishToOrder(orderId: string): void {
-    console.log(`Adding a dish to order ${orderId}`);
-    void this.router.navigate(['/menu']);
+    const order = this.findOrder(orderId);
+
+    if (!order) {
+      return;
+    }
+
+    this.closeCart();
+    void this.router.navigate(['/menu'], {
+      queryParams: buildPreOrderQueryParamsFromOrder(order),
+    });
   }
 
   updateDishQuantity(
@@ -277,11 +319,17 @@ export class CartComponent implements OnInit {
   }
 
   private loadOrders(): void {
-    this.preOrdersService
-      .getPreOrders()
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    this.loading.set(true);
+
+    this.cartSummaryService
+      .load$()
+      .pipe(
+        finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: (orders) => {
+        next: ({ orders, groupReservationIds }) => {
+          this.groupReservationIds.set(groupReservationIds);
           this.orders.set(orders);
         },
         error: (error) => {

@@ -8,6 +8,7 @@ import { interval, Subscription } from 'rxjs';
 import { NotificationsService } from '@app/services/notifications/notifications.service';
 import { Notification } from '@app/models/notifications/notification.model';
 import { CartComponent } from '@app/components/cart/cart.component';
+import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { GuestPreorderStore } from '@app/pages/guest-pre-order-page/state/guest-preorder.store';
 
 @Component({
@@ -49,6 +50,18 @@ export class HeaderComponent implements OnInit, OnDestroy {
   private readonly notificationsService = inject(NotificationsService);
   private readonly router = inject(Router);
   private readonly guestPreorderStore = inject(GuestPreorderStore);
+  private readonly cartSummaryService = inject(CartSummaryService);
+
+  // Dishes in pre-orders not yet submitted; over 9 shows "9+" so it fits the round badge.
+  readonly cartCount = this.cartSummaryService.unsubmittedItemCount;
+  readonly cartCountLabel = computed(() => (this.cartCount() > 9 ? '9+' : String(this.cartCount())));
+  readonly cartButtonLabel = computed(() => {
+    const count = this.cartCount();
+    if (count === 0) {
+      return 'Cart';
+    }
+    return `Cart, ${count} ${count === 1 ? 'dish' : 'dishes'} not submitted`;
+  });
 
   get isGuestPreorderRoute(): boolean {
     return this.router.url.startsWith('/join/');
@@ -68,6 +81,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
         this.stopNotificationsPolling();
         this.notifications.set([]);
         //this.unreadCount = 0;
+      }
+
+      if (u?.role === Roles.CUSTOMER) {
+        this.cartSummaryService.refresh();
+      } else {
+        this.cartSummaryService.clear();
       }
     });
   }

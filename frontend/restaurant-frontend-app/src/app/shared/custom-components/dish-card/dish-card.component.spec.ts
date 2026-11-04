@@ -38,4 +38,31 @@ describe('DishCardComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  describe('pointer cursor', () => {
+    function card(): HTMLElement {
+      return (fixture.nativeElement as HTMLElement).querySelector('.dish-card')!;
+    }
+
+    it('an available dish is clickable and opens its details', () => {
+      let clicked = 0;
+      component.dishClicked.subscribe(() => clicked++);
+
+      expect(card().classList).toContain('clickable');
+      card().click();
+      expect(clicked).toBe(1);
+    });
+
+    it('not in pre-order mode, where only the Pre-Order button acts', () => {
+      fixture.componentRef.setInput('preOrderEnabled', true);
+      fixture.detectChanges();
+      expect(card().classList).not.toContain('clickable');
+    });
+
+    it('not for an unavailable dish', () => {
+      fixture.componentRef.setInput('dish', { ...dish, state: DishState.OnStop });
+      fixture.detectChanges();
+      expect(card().classList).not.toContain('clickable');
+    });
+  });
 });

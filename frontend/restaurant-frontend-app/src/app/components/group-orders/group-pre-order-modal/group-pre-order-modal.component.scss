@@ -1,0 +1,203 @@
+@use 'app/shared/styles/abstracts/colors' as color;
+
+.group-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid color.$green-150;
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 40px;
+  color: color.$neutral-900;
+}
+
+.status-badge {
+  padding: 2px 12px;
+  border-radius: 4px;
+  background: color.$neutral-200;
+  font-size: 12px;
+  line-height: 20px;
+  color: color.$neutral-900;
+
+  &.sent {
+    background: color.$orange-100;
+  }
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  line-height: 24px;
+  color: color.$neutral-700;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.pending-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid color.$orange-100;
+  border-radius: 8px;
+  background: color.$orange-30;
+  font-size: 14px;
+  line-height: 24px;
+  color: color.$neutral-900;
+}
+
+.state-message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: color.$neutral-700;
+
+  p {
+    margin: 0;
+  }
+}
+
+.participants {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary {
+  // Grand Total and Submit stay in view while the participant list scrolls inside the modal.
+  position: sticky;
+  bottom: -40px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: -40px;
+  padding: 16px 0 40px;
+  border-top: 2px solid color.$neutral-200;
+  background: color.$neutral-100;
+}
+
+.grand-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 40px;
+  color: color.$neutral-900;
+
+  .amount {
+    color: color.$green-600;
+  }
+}
+
+.sent-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 24px;
+  color: color.$neutral-600;
+}
+
+.confirm-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .title,
+  .grand-total {
+    font-size: 24px;
+    line-height: 32px;
+  }
+}
+
+// The shared modal's bottom padding drops to 24px on phones; the sticky footer follows it.
+@media (max-width: 480px) {
+  .summary {
+    bottom: -24px;
+    margin-bottom: -24px;
+    padding-bottom: 24px;
+  }
+}
+
+// The design's red outline for a destructive confirm.
+.remove-confirm {
+  color: color.$red-400;
+  border-color: color.$red-400;
+
+  &:hover:not(:disabled) {
+    background-color: color.$red-30;
+  }
+
+  &:active:not(:disabled) {
+    color: color.$neutral-0;
+    background-color: color.$red-400;
+    border-color: color.$red-400;
+  }
+}
+
+.sync-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.sync-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: color.$neutral-600;
+
+  &.failed {
+    color: color.$red-400;
+  }
+}

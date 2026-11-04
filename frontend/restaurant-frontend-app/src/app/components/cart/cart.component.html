@@ -48,6 +48,7 @@
           ) {
           <app-not-submitted-order
             [order]="item"
+            [isGroup]="groupReservationIds().has(item.reservationId)"
             (submitted)="submitOrder($event)"
             (removeDish)="
               removeDishFromOrder(item.orderId, $event)
@@ -83,15 +84,24 @@
             ) {
             <app-submitted-order
               [order]="item"
+              [isGroup]="groupReservationIds().has(item.reservationId)"
               (canceled)="openCancelModal(item.orderId)"
               (edited)="editOrder(item.orderId)"
+              (viewGroup)="openGroupPreOrder(item.reservationId)"
             />
           }
         </div>
       </div>
     }
 
-    @if (orders().length === 0) {
+    @if (showLoading()) {
+      <div class="cart-loading" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="body">Loading your pre-orders…</span>
+      </div>
+    }
+
+    @if (showEmpty()) {
       <div class="empty-cart">
         <img
           src="assets/img/empty-cart.png"

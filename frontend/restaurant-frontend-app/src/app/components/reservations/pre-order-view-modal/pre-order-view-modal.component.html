@@ -1,0 +1,15 @@
+<!-- neutral-100, as in the group pre-order: a white card on a light-grey window. -->
+<app-modal title="My Pre-Order" width="840px" background="#f7f7f7" (closed)="closed.emit()">
+  <p class="summary">
+    {{ reservation().locationAddress }} · {{ reservation().startTime | date: 'MMM d, y' }},
+    {{ reservation().startTime | date: 'HH:mm' }} – {{ reservation().endTime | date: 'HH:mm' }}
+  </p>
+  <p class="note">Pre-orders close 30 minutes before the booking starts, so this one can no longer be changed.</p>
+
+  <app-participant-card [participant]="participant()" [isOwn]="true" />
+
+  <p class="total">
+    <span>Total</span>
+    <span class="amount">{{ participant().total | currency }}</span>
+  </p>
+</app-modal>

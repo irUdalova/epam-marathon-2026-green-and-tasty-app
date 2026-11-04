@@ -1,9 +1,9 @@
 <div class="submitted-order-item">
   <div class="text">
-    <span class="body-bold">
-      Pre-order #{{ order().orderId }}
-      ({{ order().reservationAddress }}, {{ order().reservationTime }})
-    </span>
+    <div class="order-title">
+      <span class="body-bold">{{ order().reservationAddress }}</span>
+      <span class="body">{{ order().reservationTime }}</span>
+    </div>
 
     @for (item of order().orderItems; track item.dish.id) {
     <div class="order-item">
@@ -49,21 +49,34 @@
     </div>
   </div>
 
-  <div class="actions">
-    <button
-      type="button"
-      class="button button--secondary button--large"
-      (click)="cancelOrder()"
-    >
-      Cancel Pre-order
-    </button>
+  @if (isGroup()) {
+    <p class="body group-note">Sent with the group pre-order. It can no longer be changed.</p>
+    <div class="actions">
+      <button
+        type="button"
+        class="button button--secondary button--large"
+        (click)="viewGroup.emit()"
+      >
+        View Group Pre-Order
+      </button>
+    </div>
+  } @else {
+    <div class="actions">
+      <button
+        type="button"
+        class="button button--secondary button--large"
+        (click)="cancelOrder()"
+      >
+        Cancel Pre-order
+      </button>
 
-    <button
-      type="button"
-      class="button button--primary button--large"
-      (click)="editOrder()"
-    >
-      Edit Pre-order
-    </button>
-  </div>
+      <button
+        type="button"
+        class="button button--primary button--large"
+        (click)="editOrder()"
+      >
+        Edit Pre-order
+      </button>
+    </div>
+  }
 </div>

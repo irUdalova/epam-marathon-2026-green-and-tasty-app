@@ -11,6 +11,8 @@ export class ModalComponent {
   readonly title = input('');
   readonly width = input('520px');
   readonly closeOnBackdrop = input(true);
+  // Card background; defaults to white from the stylesheet.
+  readonly background = input<string | null>(null);
 
   readonly closed = output<void>();
 

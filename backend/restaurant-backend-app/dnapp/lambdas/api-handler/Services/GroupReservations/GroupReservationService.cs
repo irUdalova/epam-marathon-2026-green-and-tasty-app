@@ -132,7 +132,10 @@ public class GroupReservationService(
         if (reservation.Status != ReservationStatus.Reserved)
             throw new GroupReservationExpiredException("The group reservation is expired.");
 
-        GroupReservation groupReservation = (await groupReservationRepository.GetByReservationIdAsync(reservationId))!;
+        // A booking edited from one guest to more, or made before group pre-orders existed, has no
+        // group yet: it is created here, the same way as when the booking is made.
+        GroupReservation groupReservation = await groupReservationRepository.GetByReservationIdAsync(reservationId)
+            ?? await CreateGroupReservationAsync(reservationId);
 
         if (groupReservation.Status == GroupReservationStatus.Submitted)
             throw new GroupReservationSubmittedException();

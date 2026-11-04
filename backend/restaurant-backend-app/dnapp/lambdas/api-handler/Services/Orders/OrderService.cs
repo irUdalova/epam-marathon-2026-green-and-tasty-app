@@ -5,6 +5,7 @@ using APIHandler.Constants.Orders;
 using APIHandler.Entities;
 using APIHandler.Exceptions;
 using APIHandler.Helpers;
+using APIHandler.Repositories.GroupReservations;
 using APIHandler.Repositories.Orders;
 using APIHandler.Repositories.Reservations;
 using APIHandler.Services.Dishes;
@@ -22,17 +23,20 @@ public class OrderService : IOrderService
     private readonly IReservationRepository _reservationRepository;
     private readonly IDishService _dishService;
     private readonly INotificationService _notificationService;
+    private readonly IGroupReservationRepository _groupReservationRepository;
 
     public OrderService(
         IOrderRepository orderRepository,
         IReservationRepository reservationRepository,
         IDishService dishService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IGroupReservationRepository groupReservationRepository)
     {
         _orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
         _reservationRepository = reservationRepository ?? throw new ArgumentNullException(nameof(reservationRepository));
         _dishService = dishService ?? throw new ArgumentNullException(nameof(dishService));
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+        _groupReservationRepository = groupReservationRepository ?? throw new ArgumentNullException(nameof(groupReservationRepository));
     }
 
     public async Task<IEnumerable<Order>> GetOrdersByCustomerIdAsync(string customerId)
@@ -129,6 +133,8 @@ public class OrderService : IOrderService
         List<OrderItem> newDishes,
         ILambdaContext context)
     {
+        await EnsureGroupNotSubmittedAsync(reservationId);
+
         await EditPreOrderInternalAsync(
             reservationId,
             newDishes,
@@ -174,6 +180,8 @@ public class OrderService : IOrderService
             throw new ActionForbiddenException("You are not authorized to cancel this pre-order.");
         }
 
+        await EnsureGroupNotSubmittedAsync(reservationId);
+
         var order = await GetActiveOrderByReservationIdAsync(reservationId, throwIfNotFound: true);
         order!.Status = OrderStatus.Cancelled;
 
@@ -206,6 +214,8 @@ public class OrderService : IOrderService
             throw new ActionForbiddenException("You are not authorized to submit this pre-order.");
         }
 
+        await EnsureGroupNotSubmittedAsync(reservationId);
+
         var order = await GetOrderByReservationIdAsync(reservationId);
         if (order == null)
         {
@@ -217,6 +227,16 @@ public class OrderService : IOrderService
 
         await _orderRepository.SaveOrderAsync(order);
         context.Logger.LogLine($"Pre-order {order.OrderId} for reservation {reservationId} submitted by customer {customerId}.");
+    }
+
+    // After a group submit the order also holds the guests' dishes and the group is locked, so the
+    // customer can no longer edit, unsubmit or cancel it (a waiter still can, once the table is in progress).
+    private async Task EnsureGroupNotSubmittedAsync(string reservationId)
+    {
+        var group = await _groupReservationRepository.GetByReservationIdAsync(reservationId);
+        if (group?.Status == GroupReservationStatus.Submitted)
+            throw new GroupReservationSubmittedException(
+                "This group pre-order has been sent to the restaurant and can no longer be changed.");
     }
 
     private async Task EditPreOrderInternalAsync(
