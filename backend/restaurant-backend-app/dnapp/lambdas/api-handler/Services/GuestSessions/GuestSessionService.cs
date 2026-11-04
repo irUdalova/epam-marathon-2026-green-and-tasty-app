@@ -433,9 +433,6 @@ public class GuestSessionService(
             .Where(s => s.IsSubmitted)
             .ToList();
 
-        if (submittedSessions.Count == 0)
-            throw new ValidationException("There are no submitted guest sessions to confirm.");
-
         var submittedItems = submittedSessions
             .SelectMany(s => s.Dishes ?? [])
             .Where(d => d.Quantity > 0)
@@ -454,11 +451,13 @@ public class GuestSessionService(
             .Select(g => new ConsolidatedDishResponse(g.Key, g.Sum(d => d.Quantity)))
             .ToList();
 
-        if (consolidated.Count == 0)
-            throw new ValidationException("Submitted guest sessions contain no dishes.");
-
         var order = await orderRepository.GetOrderByReservationIdAsync(reservationId)
             ?? throw new ValidationException($"Order for reservation {reservationId} was not found.");
+
+        // With no guest dishes the owner's own pre-order is sent alone, and the group is still marked
+        // Submitted, so it cannot be submitted or changed again. There must be something to send.
+        if (consolidated.Count == 0 && !(order.Dishes ?? []).Any(d => d.Quantity > 0))
+            throw new ValidationException("There is nothing to submit: no guest has submitted dishes and your own pre-order is empty.");
 
         order.Dishes ??= [];
         foreach (var item in consolidated)

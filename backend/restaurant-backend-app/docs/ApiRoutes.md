@@ -977,6 +977,11 @@ Response: `200 OK`
 "Pre-order unsubmitted successfully."
 ```
 
+> **Updated (2026-11-04).** `PUT`, `DELETE` and `unsubmit` on `/orders/{reservationId}` return `400`
+> ("This group pre-order has been sent to the restaurant and can no longer be changed.") for a customer
+> when the reservation's group pre-order is `Submitted`: the order then also holds the guests' dishes.
+> A waiter can still edit it once the table is in progress.
+
 ## Reports
 
 ### `GET` /reports/download
@@ -1252,10 +1257,14 @@ Response: `200 OK` with the merged dishes taken from the guest sessions:
 ]
 ```
 
+> **Updated (2026-11-04).** It no longer needs a submitted guest: with no guest dishes the owner's
+> own order is sent alone and the group is still set to `Submitted`, so it cannot be submitted or
+> changed again. The response is then `[]`.
+
 Errors: `401` no Cognito token · `403` caller is not the reservation owner ·
 `404` group reservation or its reservation not found ·
-`400` `reservationId` missing or not the reservation of this group · no submitted sessions ·
-no dishes in the submitted sessions · order not found ·
+`400` `reservationId` missing or not the reservation of this group ·
+nothing to submit (no guest dishes and the owner's order is empty) · order not found ·
 group already submitted (`errorCode: GroupReservationSubmitted`) or closed (`errorCode: GroupReservationExpired`).
 
 ### `GET` /guest/groups/{groupReservationId}/sessions
