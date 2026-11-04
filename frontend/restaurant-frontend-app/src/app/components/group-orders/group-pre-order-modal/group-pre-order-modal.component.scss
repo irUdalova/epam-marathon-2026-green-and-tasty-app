@@ -183,3 +183,21 @@
     border-color: color.$red-400;
   }
 }
+
+.sync-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.sync-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: color.$neutral-600;
+
+  &.failed {
+    color: color.$red-400;
+  }
+}

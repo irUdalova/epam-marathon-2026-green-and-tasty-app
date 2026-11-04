@@ -13,7 +13,19 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { finalize, forkJoin, Observable, Subscription, switchMap } from 'rxjs';
+import {
+  catchError,
+  EMPTY,
+  exhaustMap,
+  filter,
+  finalize,
+  forkJoin,
+  interval,
+  Observable,
+  Subscription,
+  switchMap,
+  tap,
+} from 'rxjs';
 import { ParticipantCardComponent } from '@app/components/group-orders/participant-card/participant-card.component';
 import { GroupSessionsResponse } from '@app/models/group-orders/group-sessions-response.model';
 import { GroupReservationStatus } from '@app/models/group-orders/group-status.model';
@@ -28,6 +40,9 @@ import { buildPreOrderQueryParams } from '@app/shared/helpers/pre-order-query-pa
 import { isPreOrderClosed } from '@app/shared/helpers/pre-order-window';
 
 type LoadState = 'loading' | 'ready' | 'not-found' | 'error';
+
+/** While the group is open, the guests' carts and the status are re-read this often. */
+const SYNC_INTERVAL_MS = 15_000;
 
 const STATUS_LABELS: Record<GroupReservationStatus, string> = {
   Open: 'Collecting pre-orders',
@@ -54,6 +69,7 @@ export class GroupPreOrderModalComponent implements OnInit {
   readonly closed = output<void>();
 
   private loadSubscription?: Subscription;
+  private syncSubscription?: Subscription;
 
   readonly state = signal<LoadState>('loading');
   readonly groupId = signal<string | null>(null);
@@ -63,6 +79,11 @@ export class GroupPreOrderModalComponent implements OnInit {
   readonly confirmOpen = signal(false);
   readonly submitting = signal(false);
   readonly savingOwnOrder = signal(false);
+
+  // Background sync: when the data on screen was last read, and whether the last try failed.
+  readonly lastUpdated = signal<Date | null>(null);
+  readonly refreshFailed = signal(false);
+  readonly syncing = signal(false);
 
   // The guest the owner is about to remove; non-null while the confirmation is open.
   readonly removeTarget = signal<Participant | null>(null);
@@ -121,6 +142,7 @@ export class GroupPreOrderModalComponent implements OnInit {
 
   load(): void {
     this.loadSubscription?.unsubscribe();
+    this.stopSync();
     this.state.set('loading');
 
     this.loadSubscription = this.groupOrdersService
@@ -140,11 +162,20 @@ export class GroupPreOrderModalComponent implements OnInit {
           this.sessions.set(sessions);
           this.status.set(status.status);
           this.state.set('ready');
+          this.markUpdated();
+          this.startSync();
         },
         error: (error: HttpErrorResponse) => {
           this.state.set(error.status === 404 ? 'not-found' : 'error');
         },
       });
+  }
+
+  /** Refresh button: re-read now, unless a read is already on its way. */
+  refreshNow(): void {
+    if (!this.syncing()) {
+      this.sync$()?.pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    }
   }
 
   isOwner(person: Participant): boolean {
@@ -193,6 +224,7 @@ export class GroupPreOrderModalComponent implements OnInit {
         this.submitting.set(false);
         this.confirmOpen.set(false);
         this.status.set('Submitted');
+        this.stopSync();
         this.toastService.success('Pre-order sent to the restaurant');
         this.cartSummaryService.refresh();
       },
@@ -312,6 +344,61 @@ export class GroupPreOrderModalComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({ error: () => undefined });
+  }
+
+  // One timer at a time: load() and Submit stop it, and takeUntilDestroyed ends it with the window.
+  // A tick is skipped while the previous read is still on its way (filter + exhaustMap).
+  private startSync(): void {
+    this.stopSync();
+    if (this.isLocked()) {
+      return;
+    }
+
+    this.syncSubscription = interval(SYNC_INTERVAL_MS)
+      .pipe(
+        filter(() => !this.syncing()),
+        exhaustMap(() => this.sync$() ?? []),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+  }
+
+  private stopSync(): void {
+    this.syncSubscription?.unsubscribe();
+    this.syncSubscription = undefined;
+  }
+
+  // Silent reads (no error toast): on failure the last data stays and the screen says so.
+  private sync$(): Observable<unknown> | null {
+    const groupId = this.groupId();
+    if (!groupId) {
+      return null;
+    }
+
+    this.syncing.set(true);
+    return forkJoin({
+      sessions: this.groupOrdersService.getSessions$(groupId, { silent: true }),
+      status: this.groupOrdersService.getStatus$(groupId, { silent: true }),
+    }).pipe(
+      tap({
+        next: ({ sessions, status }) => {
+          this.sessions.set(sessions);
+          this.status.set(status.status);
+          this.markUpdated();
+          if (this.isLocked()) {
+            this.stopSync();
+          }
+        },
+        error: () => this.refreshFailed.set(true),
+      }),
+      catchError(() => EMPTY),
+      finalize(() => this.syncing.set(false)),
+    );
+  }
+
+  private markUpdated(): void {
+    this.lastUpdated.set(new Date());
+    this.refreshFailed.set(false);
   }
 
   private refreshSessions(groupId: string): void {

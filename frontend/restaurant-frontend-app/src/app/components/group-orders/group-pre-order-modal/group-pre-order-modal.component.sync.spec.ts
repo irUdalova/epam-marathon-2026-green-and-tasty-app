@@ -4,7 +4,7 @@
 // fakeAsync + tick(15_000) «прокручує» час без очікування. Запуск: npm run test:hw
 import { TestBed, discardPeriodicTasks, fakeAsync, tick } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { GroupOrdersService } from '@app/services/group-orders/group-orders.service';
 import { CartSummaryService } from '@app/services/cart/cart-summary.service';
 import { ToastService } from '@app/services/toast/toast.service';
@@ -55,12 +55,14 @@ describe('Рівень 3 · синхронізація', () => {
 
   beforeEach(() => {
     service = jasmine.createSpyObj<GroupOrdersService>('GroupOrdersService', [
-      'getGroupReservationId$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$',
+      'getGroupReservationId$', 'getSessions$', 'getOwnerSessionId$', 'getStatus$', 'submit$', 'submitOwnerOrder$',
     ]);
     service.getGroupReservationId$.and.returnValue(of('grp-1'));
     service.getSessions$.and.returnValue(of(structuredClone(SESSIONS)));
     service.getOwnerSessionId$.and.returnValue(of('owner'));
     service.getStatus$.and.returnValue(of({ currentParticipants: 2, maxCapacity: 5, status: 'Open' as const }));
+    // No guest has submitted here, so Submit sends only the owner's order.
+    service.submitOwnerOrder$.and.returnValue(of({}));
   });
 
   it('кожні 15 с підтягує свіжі кошики — без перезавантаження сторінки', fakeAsync(() => {
@@ -125,4 +127,58 @@ describe('Рівень 3 · синхронізація', () => {
     expect(service.getSessions$).toHaveBeenCalledTimes(1);
     discardPeriodicTasks();
   }));
+
+  describe('extra cases', () => {
+    it('Try again does not start a second timer', fakeAsync(() => {
+      const { fixture } = create();
+      fixture.componentInstance.load();
+      tick(SYNC_MS);
+      // two loads + one background read, not two
+      expect(service.getSessions$).toHaveBeenCalledTimes(3);
+      discardPeriodicTasks();
+    }));
+
+    it('a read still on its way makes the next tick wait', fakeAsync(() => {
+      const { fixture } = create();
+      const slow = new Subject<typeof SESSIONS>();
+      service.getSessions$.and.returnValue(slow);
+      tick(SYNC_MS * 2);
+      expect(service.getSessions$).toHaveBeenCalledTimes(2);
+
+      slow.next(structuredClone(SESSIONS));
+      slow.complete();
+      fixture.detectChanges();
+      service.getSessions$.and.returnValue(of(structuredClone(SESSIONS)));
+      tick(SYNC_MS);
+      expect(service.getSessions$).toHaveBeenCalledTimes(3);
+      discardPeriodicTasks();
+    }));
+
+    it('stops when a background read finds the group already sent', fakeAsync(() => {
+      const { fixture, element } = create();
+      service.getStatus$.and.returnValue(of({ currentParticipants: 2, maxCapacity: 5, status: 'Submitted' as const }));
+      tick(SYNC_MS);
+      fixture.detectChanges();
+      expect(element.textContent).toContain('Sent to Restaurant');
+
+      tick(SYNC_MS * 3);
+      expect(service.getSessions$).toHaveBeenCalledTimes(2);
+      discardPeriodicTasks();
+    }));
+
+    it('a later successful read clears «Couldn’t refresh»', fakeAsync(() => {
+      const { fixture, element } = create();
+      service.getSessions$.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+      tick(SYNC_MS);
+      fixture.detectChanges();
+      expect(element.textContent).toMatch(/Couldn.t refresh/);
+
+      service.getSessions$.and.returnValue(of(structuredClone(SESSIONS)));
+      buttonByText(element, 'Refresh')!.click();
+      fixture.detectChanges();
+      expect(element.textContent).not.toMatch(/Couldn.t refresh/);
+      expect(element.textContent).toContain('Updated at');
+      discardPeriodicTasks();
+    }));
+  });
 });
