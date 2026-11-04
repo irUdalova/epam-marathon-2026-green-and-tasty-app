@@ -21,18 +21,20 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs/operators';
 
 import { LoginModalComponent } from '@app/auth/components/login/login-modal/login-modal.component';
+import { DishModalComponent } from '@app/components/dish-modal/dish-modal.component';
 
 @Component({
   selector: 'app-main-page',
   templateUrl: './main-page.component.html',
   styleUrls: ['./main-page.component.scss'],
   standalone: true,
-  imports: [CommonModule, RouterLink, LocationCardComponent, FeedbackWindowComponent, LoginModalComponent, ],
+  imports: [CommonModule, RouterLink, LocationCardComponent, FeedbackWindowComponent, LoginModalComponent, DishModalComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   providers: [LocationsService, DishesService, ReservationService, UsersService, FeedbacksService],
 })
 export class MainPageComponent implements OnInit {
   dishes: DishListResponse[] = [];
+  selectedDish: DishListResponse | null = null;
   locations: LocationResponse[] = [];
 
   showFeedbackModal = false;
@@ -66,6 +68,14 @@ export class MainPageComponent implements OnInit {
   // closing the modal returns to the main screen
   closeLogin() {
     this.router.navigate(['/main']);
+  }
+
+  openDish(dish: DishListResponse): void {
+    this.selectedDish = dish;
+  }
+
+  closeDish(): void {
+    this.selectedDish = null;
   }
 
   ngOnInit(): void {

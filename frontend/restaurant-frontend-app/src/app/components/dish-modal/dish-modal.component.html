@@ -11,13 +11,15 @@
 
   <h3 class="dish-name">{{ dish.name }}</h3>
 
+  <!-- The API sends the values with their units ("620 kcal", "28 g"), so none are added here.
+       A missing value shows a dash: the API sends fats as "Fats", so the frontend gets none. -->
   <div class="dish-info">
     <p class="dish-description">{{ dish.description }}</p>
-    <p><strong>Calories:</strong> {{ dish.calories }} kcal</p>
-    <p><strong>Protein:</strong> {{ dish.proteins }}</p>
-    <p><strong>Fats:</strong> {{ dish.fats }}g</p>
-    <p><strong>Carbohydrates:</strong> {{ dish.carbohydrates }}</p>
-    <p><strong>Vitamins and minerals:</strong> {{ dish.vitamins }}</p>
+    <p><strong>Calories:</strong> {{ dish.calories || '—' }}</p>
+    <p><strong>Protein:</strong> {{ dish.proteins || '—' }}</p>
+    <p><strong>Fats:</strong> {{ dish.fats || '—' }}</p>
+    <p><strong>Carbohydrates:</strong> {{ dish.carbohydrates || '—' }}</p>
+    <p><strong>Vitamins and minerals:</strong> {{ dish.vitamins || '—' }}</p>
   </div>
 
   <div class="price-weight">

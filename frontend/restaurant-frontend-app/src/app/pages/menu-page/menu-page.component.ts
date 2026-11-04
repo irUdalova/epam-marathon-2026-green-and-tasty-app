@@ -90,18 +90,20 @@ export class MenuPageComponent implements OnInit {
         description: dish.description || 'N/A',
         state: dish.state || 'N/A',
         dishType: dish.dishType || 'N/A',
-        calories: dish.calories || '0',
-        proteins: dish.proteins || '0',
-        fats: dish.fats || '0',
-        carbohydrates: dish.carbohydrates || '0',
-        vitamins: dish.vitamins || '0',
+        // Missing nutrition values stay empty, so the dish window shows a dash instead of a false "0".
+        calories: dish.calories || '',
+        proteins: dish.proteins || '',
+        fats: dish.fats || '',
+        carbohydrates: dish.carbohydrates || '',
+        vitamins: dish.vitamins || '',
       }));
 
       this.filteredDishes = this.dishes;
     });
   }
 
-  onCategorySelected(category: DishType): void {
+  onCategorySelected(category: DishType | null): void {
+    // Clicking the active category again also goes back to all dishes.
     this.selectedCategory = this.selectedCategory === category ? null : category;
 
     this.router.navigate([], {

@@ -36,8 +36,11 @@ export class DishCardComponent {
     );
   });
 
+  // In pre-order mode only the Pre-Order button acts, so the card itself is not clickable then.
+  readonly isClickable = computed(() => !this.isUnavailable() && !this.preOrderEnabled());
+
   onCardClicked(): void {
-    if (!this.isUnavailable() && !this.preOrderEnabled()) {
+    if (this.isClickable()) {
       this.dishClicked.emit();
     }
   }

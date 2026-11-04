@@ -3,6 +3,10 @@
 
 .menu-container {
   background-color: color.$neutral-100;
+  // Padding, not a margin on the content: a margin would collapse through this box and
+  // leave the grey ending right at the cards. With the content's 2.5rem this matches the
+  // 4.5rem between the filter buttons and the cards.
+  padding-bottom: 2rem;
 }
 
 // ✅ HERO SECTION (added block)
@@ -105,7 +109,8 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-start;
-    gap: 2rem 2%;
+    // A fixed gap: 2% shrank to about 15px between cards on narrower screens.
+    gap: 2rem 1.5rem;
     margin: 0;
   }
 }
@@ -121,6 +126,7 @@
 
 .category-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
 
   button {
@@ -186,8 +192,12 @@
     }
   }
 
+  .menu-container {
+    padding-bottom: 3rem;
+  }
+
   .content-sections {
-    margin: 0.5rem;
+    margin: 0.5rem 1rem;
     gap: 2rem;
   }
 
